@@ -23,19 +23,19 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shader.vert">
+    <None Include="shaders\shader.vert">
       <Filter>Resource Files\shaders</Filter>
     </None>
-    <None Include="shader.frag">
+    <None Include="shaders\shader.frag">
       <Filter>Resource Files\shaders</Filter>
     </None>
-    <None Include="compile.bat">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="frag.spv">
+    <None Include="shaders\compile.bat">
       <Filter>Resource Files\shaders</Filter>
     </None>
-    <None Include="vert.spv">
+    <None Include="shaders\frag.spv">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="shaders\vert.spv">
       <Filter>Resource Files\shaders</Filter>
     </None>
   </ItemGroup>

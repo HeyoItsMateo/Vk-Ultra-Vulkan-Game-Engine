@@ -152,6 +152,12 @@
     <None Include="shaders\shader.vert" />
     <None Include="shaders\vert.spv" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="appRender.h" />
+    <ClInclude Include="appWindow.h" />
+    <ClInclude Include="GPU.h" />
+    <ClInclude Include="VulkanAPI.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

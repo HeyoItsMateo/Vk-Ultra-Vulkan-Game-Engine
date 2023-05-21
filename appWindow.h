@@ -1,10 +1,10 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-struct appWindow {
+struct VkWindow {
 	GLFWwindow* window{}; //GLFW window handle
 
-	appWindow(const char *windowName, uint32_t WIDTH = 800, uint32_t HEIGHT = 600)
+	VkWindow(const char *windowName, uint32_t WIDTH = 800, uint32_t HEIGHT = 600)
 	{// Initialize and open application window
 		glfwInit();
 
@@ -14,7 +14,7 @@ struct appWindow {
 		glfwSetWindowUserPointer(window, this);
 		glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 	}
-	virtual ~appWindow()
+	virtual ~VkWindow()
 	{// Destroy the structure and free memory resources
 		glfwDestroyWindow(window);
 		glfwTerminate();
@@ -24,7 +24,7 @@ private:
 	bool framebufferResized = false;
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-		auto app = reinterpret_cast<appWindow*>(glfwGetWindowUserPointer(window));
+		auto app = reinterpret_cast<VkWindow*>(glfwGetWindowUserPointer(window));
 		app->framebufferResized = true;
 	}
 

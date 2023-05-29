@@ -32,6 +32,27 @@ struct VkGraphicsUnit {
     ~VkGraphicsUnit() {
         vkDestroyDevice(device, nullptr);
     }
+
+    void querySwapChainSupport(VkPhysicalDevice device) {
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, pVkApp->surface, &capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, nullptr);
+
+        if (formatCount != 0) {
+            formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, nullptr);
+
+        if (presentModeCount != 0) {
+            presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, presentModes.data());
+        }
+    }
+
 private:
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
@@ -103,22 +124,6 @@ private:
         vkGetDeviceQueue(device, presentFamily.value(), 0, &presentQueue);
     }
 
-    bool isDeviceSuitable(VkPhysicalDevice device) {
-        findQueueFamilies(device);
-
-        bool extensionsSupported = checkDeviceExtensionSupport(device);
-
-        bool swapChainAdequate = false;
-        if (extensionsSupported) {
-            querySwapChainSupport(device);
-            swapChainAdequate = !formats.empty() && !presentModes.empty();
-        }
-
-        VkPhysicalDeviceFeatures supportedFeatures;
-        vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-
-        return isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
-    }
     void findQueueFamilies(VkPhysicalDevice device) {
         uint32_t queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -144,6 +149,22 @@ private:
             i++;
         }
     }
+    bool isDeviceSuitable(VkPhysicalDevice device) {
+        findQueueFamilies(device);
+
+        bool extensionsSupported = checkDeviceExtensionSupport(device);
+
+        bool swapChainAdequate = false;
+        if (extensionsSupported) {
+            querySwapChainSupport(device);
+            swapChainAdequate = !formats.empty() && !presentModes.empty();
+        }
+
+        VkPhysicalDeviceFeatures supportedFeatures;
+        vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+
+        return isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+    }
     bool isComplete() {
         return graphicsFamily.has_value() && presentFamily.has_value();
     }
@@ -162,25 +183,7 @@ private:
 
         return requiredExtensions.empty();
     }
-    void querySwapChainSupport(VkPhysicalDevice device) {
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, pVkApp->surface, &capabilities);
-
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, nullptr);
-
-        if (formatCount != 0) {
-            formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, formats.data());
-        }
-
-        uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, nullptr);
-
-        if (presentModeCount != 0) {
-            presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, presentModes.data());
-        }
-    }
+    
 
     VkSampleCountFlagBits getMaxUsableSampleCount() {
         VkPhysicalDeviceProperties physicalDeviceProperties;
@@ -228,6 +231,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         createRenderPass();
     }
     void createSwapChain() {
+        querySwapChainSupport(physicalDevice);
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes);
         VkExtent2D extent = chooseSwapExtent(capabilities);

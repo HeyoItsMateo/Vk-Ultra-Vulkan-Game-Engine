@@ -1,9 +1,9 @@
 #include "VulkanEngine.h"
 
 int main() {
-    VulkanAPI VkApplication("Vulkan");
+    VulkanAPI VkApp("Vulkan");
     try {
-        VkGraphicsEngine app(&VkApplication);
+        VkGraphicsEngine app(&VkApp);
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;

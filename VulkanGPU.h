@@ -32,6 +32,27 @@ struct VkGraphicsUnit {
     ~VkGraphicsUnit() {
         vkDestroyDevice(device, nullptr);
     }
+
+    void querySwapChainSupport(VkPhysicalDevice device) {
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, pVkApp->surface, &capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, nullptr);
+
+        if (formatCount != 0) {
+            formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, nullptr);
+
+        if (presentModeCount != 0) {
+            presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, presentModes.data());
+        }
+    }
+
 private:
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
@@ -162,25 +183,7 @@ private:
 
         return requiredExtensions.empty();
     }
-    void querySwapChainSupport(VkPhysicalDevice device) {
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, pVkApp->surface, &capabilities);
-
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, nullptr);
-
-        if (formatCount != 0) {
-            formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, pVkApp->surface, &formatCount, formats.data());
-        }
-
-        uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, nullptr);
-
-        if (presentModeCount != 0) {
-            presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, presentModes.data());
-        }
-    }
+    
 
     VkSampleCountFlagBits getMaxUsableSampleCount() {
         VkPhysicalDeviceProperties physicalDeviceProperties;
@@ -228,6 +231,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         createRenderPass();
     }
     void createSwapChain() {
+        querySwapChainSupport(physicalDevice);
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes);
         VkExtent2D extent = chooseSwapExtent(capabilities);

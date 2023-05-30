@@ -21,15 +21,21 @@ struct VkGraphicsUnit {
 
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
+
+    VkCommandPool commandPool;
     VkQueue graphicsQueue;
+    VkQueue computeQueue;
     VkQueue presentQueue;
 
     VkGraphicsUnit(VulkanAPI* VkApplication) {
         pVkApp = VkApplication;
         pickPhysicalDevice();
+
         createLogicalDevice();
+        createCommandPool();
     }
     ~VkGraphicsUnit() {
+        vkDestroyCommandPool(device, commandPool, nullptr);
         vkDestroyDevice(device, nullptr);
     }
 
@@ -51,6 +57,38 @@ struct VkGraphicsUnit {
             presentModes.resize(presentModeCount);
             vkGetPhysicalDeviceSurfacePresentModesKHR(device, pVkApp->surface, &presentModeCount, presentModes.data());
         }
+    }
+
+    VkCommandBuffer beginSingleTimeCommands() {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool = commandPool;
+        allocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        return commandBuffer;
+    }
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+        vkEndCommandBuffer(commandBuffer);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+
+        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphicsQueue);
+
+        vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
     }
 
 private:
@@ -121,6 +159,7 @@ private:
         }
 
         vkGetDeviceQueue(device, graphicsFamily.value(), 0, &graphicsQueue);
+        vkGetDeviceQueue(device, graphicsFamily.value(), 0, &computeQueue);
         vkGetDeviceQueue(device, presentFamily.value(), 0, &presentQueue);
     }
 
@@ -184,6 +223,16 @@ private:
         return requiredExtensions.empty();
     }
     
+    void createCommandPool() {
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = graphicsFamily.value();
+
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create graphics command pool!");
+        }
+    }
 
     VkSampleCountFlagBits getMaxUsableSampleCount() {
         VkPhysicalDeviceProperties physicalDeviceProperties;
@@ -204,11 +253,15 @@ private:
 struct VkGraphicsQueue : VkGraphicsUnit {
     const int MAX_FRAMES_IN_FLIGHT = 2;
 
-    VkCommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
+    std::vector<VkCommandBuffer> computeCommandBuffers;
+
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkSemaphore> computeFinishedSemaphores;
+    
     std::vector<VkFence> inFlightFences;
+    std::vector<VkFence> computeInFlightFences;
 
     VkSwapchainKHR swapChain;
     VkExtent2D swapChainExtent;
@@ -223,8 +276,9 @@ struct VkGraphicsQueue : VkGraphicsUnit {
     VkGraphicsQueue(VulkanAPI* VkApplication) : VkGraphicsUnit(VkApplication) {
         DepthFormat = findDepthFormat();
 
-        createCommandPool();
-        createCommandBuffers();
+        
+        createCommandBuffers(commandBuffers);
+        createCommandBuffers(computeCommandBuffers);
         createSyncObjects();
 
         createSwapChain();
@@ -284,66 +338,24 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+            vkDestroySemaphore(device, computeFinishedSemaphores[i], nullptr);
             vkDestroyFence(device, inFlightFences[i], nullptr);
+            vkDestroyFence(device, computeInFlightFences[i], nullptr);
         }
 
-        vkDestroyCommandPool(device, commandPool, nullptr);
-    }
-
-    VkCommandBuffer beginSingleTimeCommands() {
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = commandPool;
-        allocInfo.commandBufferCount = 1;
-
-        VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-        return commandBuffer;
-    }
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer) {
-        vkEndCommandBuffer(commandBuffer);
-
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(graphicsQueue);
-
-        vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
     }
 
 private:
-    void createCommandPool() {
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = graphicsFamily.value();
-
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create graphics command pool!");
-        }
-    }
-
-    void createCommandBuffers() {
+    void createCommandBuffers(std::vector<VkCommandBuffer> buffer) {
         commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.commandPool = commandPool;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+        allocInfo.commandBufferCount = (uint32_t)buffer.size();
 
-        if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+        if (vkAllocateCommandBuffers(device, &allocInfo, buffer.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate command buffers!");
         }
     }
@@ -351,7 +363,10 @@ private:
     void createSyncObjects() {
         imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
         renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        computeFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+
         inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+        computeInFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -365,6 +380,10 @@ private:
                 vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
                 vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
+            }
+            if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &computeFinishedSemaphores[i]) != VK_SUCCESS ||
+                vkCreateFence(device, &fenceInfo, nullptr, &computeInFlightFences[i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create compute synchronization objects for a frame!");
             }
         }
     }

@@ -146,6 +146,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="shader.comp" />
     <None Include="shaders\compile.bat" />
     <None Include="shaders\frag.spv" />
     <None Include="shaders\shader.frag" />

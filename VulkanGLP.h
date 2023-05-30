@@ -8,7 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-
+#include <variant>
 #include <chrono>
 
 struct Vertex {
@@ -47,7 +47,44 @@ struct Vertex {
     }
 };
 
-struct UniformBufferObject {
+struct Particle {
+    glm::vec2 position;
+    glm::vec2 velocity;
+    glm::vec4 color;
+
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Particle);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Particle, position);
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Particle, color);
+
+        return attributeDescriptions;
+    }
+};
+
+const uint32_t PARTICLE_COUNT = 8192;
+
+struct timeUBO {
+    float deltaTime = 1.0f;
+};
+
+struct camMatrixUBO {
     alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
@@ -190,7 +227,10 @@ private:
 
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
-        createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+        createBuffer(imageSize, 
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+            stagingBuffer, stagingBufferMemory);
 
         void* data;
         vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
@@ -468,15 +508,136 @@ private:
 
 };
 
-struct VkGraphicsPipeline : VkGraphicsResources {
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
+struct VkShader {
+    //Shader Compiler
+    VkShaderModule createShaderModule(VkDevice device, const char* shaderFile) {
+        auto shaderCode = readFile(shaderFile);
 
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
-    std::vector<void*> uniformBuffersMapped;
+        VkShaderModuleCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = shaderCode.size();
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(shaderCode.data());
+
+        VkShaderModule shaderModule{};
+        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create shader module!");
+        }
+        return shaderModule;
+    }
+private:
+    // File Reader
+    static std::vector<char> readFile(const std::string& filename) {
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file!");
+        }
+
+        size_t fileSize = (size_t)file.tellg();
+        std::vector<char> buffer(fileSize);
+
+        file.seekg(0);
+        file.read(buffer.data(), fileSize);
+
+        file.close();
+
+        return buffer;
+    }
+};
+
+struct VkBufferObj {
+    VkGraphicsUnit* pGPU;
+    VkBuffer bufferObj;
+    VkDeviceMemory bufferObj_memory;
+
+    VkBufferObj(std::vector<std::variant<uint16_t, Vertex, Particle>> bufferData, VkGraphicsUnit* GPU) {
+        pGPU = GPU;
+        VkDeviceSize bufferSize = sizeof(bufferData[0]) * bufferData.size();
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(bufferSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(pGPU->device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, bufferData.data(), (size_t)bufferSize);
+        vkUnmapMemory(pGPU->device, stagingBufferMemory);
+
+        createBuffer(bufferSize,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            bufferObj, bufferObj_memory);
+
+        copyBuffer(stagingBuffer, bufferObj, bufferSize);
+
+        vkDestroyBuffer(pGPU->device, stagingBuffer, nullptr);
+        vkFreeMemory(pGPU->device, stagingBufferMemory, nullptr);
+    }
+    ~VkBufferObj() {
+        vkDestroyBuffer(pGPU->device, bufferObj, nullptr);
+        vkFreeMemory(pGPU->device, bufferObj_memory, nullptr);
+    }
+private:
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = size;
+        bufferInfo.usage = usage;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(pGPU->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create buffer!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(pGPU->device, buffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(pGPU->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate buffer memory!");
+        }
+
+        vkBindBufferMemory(pGPU->device, buffer, bufferMemory, 0);
+    }
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(pGPU->physicalDevice, &memProperties);
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("failed to find suitable memory type!");
+    }
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+        VkCommandBuffer commandBuffer = pGPU->beginSingleTimeCommands();
+
+        VkBufferCopy copyRegion{};
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        pGPU->endSingleTimeCommands(commandBuffer);
+    }
+};
+
+struct VkGraphicsPipeline : VkGraphicsResources, VkShader {
+    VkBuffer VBO;
+    VkDeviceMemory VBO_memory;
+    VkBuffer EBO;
+    VkDeviceMemory EBO_memory;
+
+    std::vector<VkBuffer> UBO;
+    std::vector<VkDeviceMemory> UBO_memory;
+    std::vector<void*> UBO_mapped;
 
     VkDescriptorSetLayout descriptorSetLayout;
     VkDescriptorPool descriptorPool;
@@ -486,9 +647,9 @@ struct VkGraphicsPipeline : VkGraphicsResources {
     VkPipeline graphicsPipeline;
 
     VkGraphicsPipeline(VulkanAPI* VkApplication) : VkGraphicsResources(VkApplication) {
-        createVertexBuffer();
-        createIndexBuffer();
-        createUniformBuffers();
+        createVBO();
+        createEBO();
+        createUBO();
 
         createDescriptorSetLayout();
         createDescriptorPool();
@@ -499,77 +660,93 @@ struct VkGraphicsPipeline : VkGraphicsResources {
     ~VkGraphicsPipeline() {
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+
         vkDestroyRenderPass(device, renderPass, nullptr);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-            vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+            vkDestroyBuffer(device, UBO[i], nullptr);
+            vkFreeMemory(device, UBO_memory[i], nullptr);
         }
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
-        vkDestroyBuffer(device, indexBuffer, nullptr);
-        vkFreeMemory(device, indexBufferMemory, nullptr);
+        vkDestroyBuffer(device, EBO, nullptr);
+        vkFreeMemory(device, EBO_memory, nullptr);
 
-        vkDestroyBuffer(device, vertexBuffer, nullptr);
-        vkFreeMemory(device, vertexBufferMemory, nullptr);
+        vkDestroyBuffer(device, VBO, nullptr);
+        vkFreeMemory(device, VBO_memory, nullptr);
     }
 private:
     // Shader Buffer Objects and Helper Functions
-    void createVertexBuffer() {
+    void createVBO() {
         VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+        createBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+            stagingBuffer, stagingBufferMemory);
 
         void* data;
         vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
         memcpy(data, vertices.data(), (size_t)bufferSize);
         vkUnmapMemory(device, stagingBufferMemory);
 
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+        createBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+            VBO, VBO_memory);
 
-        copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+        copyBuffer(stagingBuffer, VBO, bufferSize);
 
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 
-    void createIndexBuffer() {
+    void createEBO() {
         VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+        createBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+            stagingBuffer, stagingBufferMemory);
 
         void* data;
         vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
         memcpy(data, indices.data(), (size_t)bufferSize);
         vkUnmapMemory(device, stagingBufferMemory);
 
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+        createBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+            EBO, EBO_memory);
 
-        copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+        copyBuffer(stagingBuffer, EBO, bufferSize);
 
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 
-    void createUniformBuffers()
+    void createUBO()
     {// Allocation of memory space to store UBO data
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+        VkDeviceSize bufferSize = sizeof(camMatrixUBO);
 
-        uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+        UBO.resize(MAX_FRAMES_IN_FLIGHT);
+        UBO_memory.resize(MAX_FRAMES_IN_FLIGHT);
+        UBO_mapped.resize(MAX_FRAMES_IN_FLIGHT);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+            createBuffer(bufferSize, 
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                UBO[i], UBO_memory[i]);
 
-            vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+            vkMapMemory(device, UBO_memory[i], 0, bufferSize, 0, &UBO_mapped[i]);
         }
     }
 
@@ -600,11 +777,16 @@ private:
     }
 
     void createDescriptorPool() {
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        std::array<VkDescriptorPoolSize, 3> poolSizes{};
+        // UBO descriptor
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        // Texture sampler descriptor
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        // SSBO descriptor
+        poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 2;
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -632,9 +814,9 @@ private:
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffers[i];
+            bufferInfo.buffer = UBO[i];
             bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
+            bufferInfo.range = sizeof(camMatrixUBO);
 
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -664,11 +846,8 @@ private:
     }
 
     void createShaderPipeline() {
-        auto vertShaderCode = readFile("shaders/vert.spv");
-        auto fragShaderCode = readFile("shaders/frag.spv");
-
-        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+        VkShaderModule vertShaderModule = createShaderModule(device, "shaders/vert.spv");
+        VkShaderModule fragShaderModule = createShaderModule(device, "shaders/frag.spv");
 
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -792,37 +971,6 @@ private:
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
     }
-    VkShaderModule createShaderModule(const std::vector<char>& code) {
-        VkShaderModuleCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = code.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-        VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create shader module!");
-        }
-
-        return shaderModule;
-    }
-    // File Reader
-    static std::vector<char> readFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-        if (!file.is_open()) {
-            throw std::runtime_error("failed to open file!");
-        }
-
-        size_t fileSize = (size_t)file.tellg();
-        std::vector<char> buffer(fileSize);
-
-        file.seekg(0);
-        file.read(buffer.data(), fileSize);
-
-        file.close();
-
-        return buffer;
-    }
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -833,4 +981,203 @@ private:
 
         endSingleTimeCommands(commandBuffer);
     }
+};
+
+struct VkComputePipeline : VkGraphicsResources, VkShader {
+    std::vector<Particle> particles;
+
+    std::vector<VkBuffer> UBO;
+    std::vector<VkDeviceMemory> UBO_memory;
+    std::vector<void*> timeUBO_mapped;
+
+    std::vector<VkBuffer> SSBO;
+    std::vector<VkDeviceMemory> SSBO_memory;
+
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSetLayout computeDescriptorSetLayout;
+    std::vector<VkDescriptorSet> computeDescriptorSets;
+
+    VkPipelineLayout computePipelineLayout;
+    VkPipeline computePipeline;
+
+    VkComputePipeline(const uint32_t particleCount, VulkanAPI* VkApplication) : VkGraphicsResources(VkApplication), particles(particleCount) {
+        // Initialize particles
+        std::default_random_engine rndEngine((unsigned)time(nullptr));
+        std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+
+        // Initial particle positions on a circle
+        for (auto& particle : particles) {
+            float r = 0.25f * sqrt(rndDist(rndEngine));
+            float theta = rndDist(rndEngine) * 2.0f * 3.14159265358979323846f;
+            float x = r * cos(theta) * 600 / 800;
+            float y = r * sin(theta);
+            particle.position = glm::vec2(x, y);
+            particle.velocity = glm::normalize(glm::vec2(x, y)) * 0.00025f;
+            particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
+        }
+    }
+
+    ~VkComputePipeline() {
+        vkDestroyPipeline(device, computePipeline, nullptr);
+        vkDestroyPipelineLayout(device, computePipelineLayout, nullptr);
+    }
+private:
+    void createSSBO() {
+        VkDeviceSize bufferSize = sizeof(Particle) * PARTICLE_COUNT;
+
+        // Create a staging buffer used to upload data to the gpu
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+            stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, particles.data(), (size_t)bufferSize);
+        vkUnmapMemory(device, stagingBufferMemory);
+
+        SSBO.resize(MAX_FRAMES_IN_FLIGHT);
+        SSBO_memory.resize(MAX_FRAMES_IN_FLIGHT);
+
+        // Copy initial particle data to all storage buffers
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(bufferSize, 
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+                SSBO[i], SSBO_memory[i]);
+            copyBuffer(stagingBuffer, SSBO[i], bufferSize);
+        }
+
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+    }
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        VkBufferCopy copyRegion{};
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        endSingleTimeCommands(commandBuffer);
+    }
+
+    void createComputeDescriptorSetLayout() {
+        std::array<VkDescriptorSetLayoutBinding, 3> layoutBindings{};
+        // Delta time Uniform Buffer
+        layoutBindings[0].binding = 0;
+        layoutBindings[0].descriptorCount = 1;
+        layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layoutBindings[0].pImmutableSamplers = nullptr;
+        layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        // Particle Data Input
+        layoutBindings[1].binding = 1;
+        layoutBindings[1].descriptorCount = 1;
+        layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        layoutBindings[1].pImmutableSamplers = nullptr;
+        layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        // Particle Data Output
+        layoutBindings[2].binding = 2;
+        layoutBindings[2].descriptorCount = 1;
+        layoutBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        layoutBindings[2].pImmutableSamplers = nullptr;
+        layoutBindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 3;
+        layoutInfo.pBindings = layoutBindings.data();
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &computeDescriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute descriptor set layout!");
+        }
+    }
+    void createComputeDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, computeDescriptorSetLayout);
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        allocInfo.pSetLayouts = layouts.data();
+
+        computeDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+        if (vkAllocateDescriptorSets(device, &allocInfo, computeDescriptorSets.data()) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate descriptor sets!");
+        }
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            VkDescriptorBufferInfo uniformBufferInfo{};
+            uniformBufferInfo.buffer = UBO[i];
+            uniformBufferInfo.offset = 0;
+            uniformBufferInfo.range = sizeof(timeUBO);
+
+            std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[0].dstSet = computeDescriptorSets[i];
+            descriptorWrites[0].dstBinding = 0;
+            descriptorWrites[0].dstArrayElement = 0;
+            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[0].descriptorCount = 1;
+            descriptorWrites[0].pBufferInfo = &uniformBufferInfo;
+
+            VkDescriptorBufferInfo storageBufferInfoLastFrame{};
+            storageBufferInfoLastFrame.buffer = SSBO[(i - 1) % MAX_FRAMES_IN_FLIGHT];
+            storageBufferInfoLastFrame.offset = 0;
+            storageBufferInfoLastFrame.range = sizeof(Particle) * PARTICLE_COUNT;
+
+            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[1].dstSet = computeDescriptorSets[i];
+            descriptorWrites[1].dstBinding = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrites[1].descriptorCount = 1;
+            descriptorWrites[1].pBufferInfo = &storageBufferInfoLastFrame;
+
+            VkDescriptorBufferInfo storageBufferInfoCurrentFrame{};
+            storageBufferInfoCurrentFrame.buffer = SSBO[i];
+            storageBufferInfoCurrentFrame.offset = 0;
+            storageBufferInfoCurrentFrame.range = sizeof(Particle) * PARTICLE_COUNT;
+
+            descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[2].dstSet = computeDescriptorSets[i];
+            descriptorWrites[2].dstBinding = 2;
+            descriptorWrites[2].dstArrayElement = 0;
+            descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrites[2].descriptorCount = 1;
+            descriptorWrites[2].pBufferInfo = &storageBufferInfoCurrentFrame;
+
+            vkUpdateDescriptorSets(device, 3, descriptorWrites.data(), 0, nullptr);
+        }
+    }
+    void createComputePipeline() {
+        VkShaderModule computeShaderModule = createShaderModule(device, "shaders/comp.spv");
+
+        VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
+        computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        computeShaderStageInfo.module = computeShaderModule;
+        computeShaderStageInfo.pName = "main";
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline layout!");
+        }
+
+        VkComputePipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.layout = computePipelineLayout;
+        pipelineInfo.stage = computeShaderStageInfo;
+
+        if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline!");
+        }
+
+        vkDestroyShaderModule(device, computeShaderModule, nullptr);
+    }
+
 };

@@ -6,6 +6,10 @@ public:
         while (!glfwWindowShouldClose(pVkApp->window)) {
             glfwPollEvents();
             drawFrame();
+            // We want to animate the particle system using the last frames time to get smooth, frame-rate independent animation
+            double currentTime = glfwGetTime();
+            lastFrameTime = (currentTime - lastTime) * 1000.0;
+            lastTime = currentTime;
         }
 
         vkDeviceWaitIdle(device);
@@ -15,6 +19,8 @@ public:
     }
 private:
     uint32_t currentFrame = 0;
+    float lastFrameTime = 0.0f;
+    double lastTime = 0.0f;
 
     void cleanupSwapChain() {
         vkDestroyImageView(device, colorImageView, nullptr);
@@ -41,6 +47,8 @@ private:
     }
 
     void drawFrame() {
+        // Compute submission        
+        vkWaitForFences(device, 1, &computeInFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
@@ -54,9 +62,15 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        updateUniformBuffer(currentFrame);
+        updateUniformBuffer(currentFrame); // Graphics shader cam matrix UBO update
+        updateUBO(currentFrame); // Computer shader time UBO update
 
         vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+        vkResetFences(device, 1, &computeInFlightFences[currentFrame]);
+
+        vkResetCommandBuffer(computeCommandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+        recordComputeCommandBuffer(computeCommandBuffers[currentFrame]);
 
         vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
         recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
@@ -130,13 +144,20 @@ private:
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-        UniformBufferObject ubo{};
+        camMatrixUBO ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
-        memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+        memcpy(UBO_mapped[currentImage], &ubo, sizeof(ubo));
+    }
+
+    void updateUBO(uint32_t currentImage) {
+        timeUBO ubo{};
+        ubo.deltaTime = lastFrameTime * 2.0f;
+
+        memcpy(timeUBO_mapped[currentImage], &ubo, sizeof(ubo));
     }
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -194,5 +215,24 @@ private:
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer!");
         }
+    }
+    void recordComputeCommandBuffer(VkCommandBuffer commandBuffer) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording compute command buffer!");
+        }
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSets[currentFrame], 0, nullptr);
+
+        vkCmdDispatch(commandBuffer, PARTICLE_COUNT / 256, 1, 1);
+
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record compute command buffer!");
+        }
+
     }
 };

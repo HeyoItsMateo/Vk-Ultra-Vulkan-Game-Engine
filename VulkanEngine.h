@@ -1,8 +1,47 @@
 #include "VulkanGLP.h"
 
+struct VkSyncObjects {
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
+
+    VkGraphicsUnit* VkGPU;
+    VkSyncObjects(VkGraphicsUnit& VkGPU) {
+        this->VkGPU = &VkGPU;
+
+        imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            if (vkCreateSemaphore(VkGPU.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(VkGPU.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+                vkCreateFence(VkGPU.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create synchronization objects for a frame!");
+            }
+        }
+    }
+    ~VkSyncObjects() {
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroySemaphore(VkGPU->device, renderFinishedSemaphores[i], nullptr);
+            vkDestroySemaphore(VkGPU->device, imageAvailableSemaphores[i], nullptr);
+            vkDestroyFence(VkGPU->device, inFlightFences[i], nullptr);
+        }
+    }
+};
+
 class VkGraphicsEngine : VkGraphicsPipeline {
 public:
-    VkGraphicsEngine(VkWindow* pWindow) : VkGraphicsPipeline(pWindow) {
+    
+    VkSyncObjects syncObjects;
+    VkGraphicsEngine(VkWindow* pWindow) : VkGraphicsPipeline(pWindow), syncObjects(*this) {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
             UBO.update(currentFrame, swapChainExtent.width, swapChainExtent.height);
@@ -13,15 +52,16 @@ public:
         vkDeviceWaitIdle(device);
     }
     ~VkGraphicsEngine() {
+        
     }
 private:
     uint32_t currentFrame = 0;
 
     void drawFrame() {
-        vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(device, 1, &syncObjects.inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, syncObjects.imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             
@@ -32,28 +72,28 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        vkResetFences(device, 1, &inFlightFences[currentFrame]);
+        vkResetFences(device, 1, &syncObjects.inFlightFences[currentFrame]);
 
-        vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-        recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+        vkResetCommandBuffer(CPU.commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+        recordCommandBuffer(CPU.commandBuffers[currentFrame], imageIndex);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
+        VkSemaphore waitSemaphores[] = { syncObjects.imageAvailableSemaphores[currentFrame] };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+        submitInfo.pCommandBuffers = &CPU.commandBuffers[currentFrame];
 
-        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
+        VkSemaphore signalSemaphores[] = { syncObjects.renderFinishedSemaphores[currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, syncObjects.inFlightFences[currentFrame]) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -93,36 +133,22 @@ private:
 
         createSwapChain();
         createImageViews();
-        color = VkResource(*this, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-        depth = VkResource(*this, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-        
+
+        createImageResource<VkColorImage>(color);
+        createImageResource<VkDepthImage>(depth);
         createFramebuffers();
     }
     // TODO: Solve the swapchain cleanup problem
     void cleanupSwapChain() {
-        /*
-        vkDestroyImageView(device, color.ImageView, nullptr);
-        vkDestroyImage(device, color.Image, nullptr);
-        vkFreeMemory(device, color.ImageMemory, nullptr);
-
-        vkDestroyImageView(device, depth.ImageView, nullptr);
-        vkDestroyImage(device, depth.Image, nullptr);
-        vkFreeMemory(device, depth.ImageMemory, nullptr);
-        */
-
-        color.~VkResource();
-        depth.~VkResource();
-
         for (auto framebuffer : swapChainFramebuffers) {
             vkDestroyFramebuffer(device, framebuffer, nullptr);
         }
 
+        destroyImageResource<VkColorImage>(color);
+        destroyImageResource<VkDepthImage>(depth);
         for (auto imageView : swapChainImageViews) {
             vkDestroyImageView(device, imageView, nullptr);
         }
-        
         vkDestroySwapchainKHR(device, swapChain, nullptr);
     }
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {

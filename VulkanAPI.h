@@ -54,12 +54,18 @@ private:
 
 };
 
-struct VulkanAPI : VkWindow {
+struct VulkanAPI {
+    GLFWwindow* window{};
+    bool framebufferResized;
+
 	VkInstance instance;
     VkSurfaceKHR surface;
     VkDebugUtilsMessengerEXT debugMessenger;
 
-	VulkanAPI(const char* windowName, uint32_t WIDTH = 800, uint32_t HEIGHT = 600) : VkWindow(windowName, WIDTH, HEIGHT) {
+	VulkanAPI(VkWindow* pVkWindow) {
+        this->window = pVkWindow->window;
+        this->framebufferResized = pVkWindow->framebufferResized;
+
 		createInstance();
         setupDebugMessenger();
         createSurface();

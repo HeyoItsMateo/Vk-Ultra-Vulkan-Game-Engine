@@ -13,7 +13,6 @@ public:
         vkDeviceWaitIdle(device);
     }
     ~VkGraphicsEngine() {
-        cleanupSwapChain();
     }
 private:
     uint32_t currentFrame = 0;

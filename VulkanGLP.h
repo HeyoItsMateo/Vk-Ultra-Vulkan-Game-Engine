@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <variant>
 #include <chrono>
 
 struct Vertex {
@@ -46,7 +47,7 @@ struct Vertex {
     }
 };
 
-struct UniformBufferObject {
+struct camMatrix {
     alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
@@ -69,7 +70,92 @@ const std::vector<uint16_t> indices = {
     4, 5, 6, 6, 7, 4
 };
 
+struct VkResource {
+    VkImage Image;
+    VkDeviceMemory ImageMemory;
+    VkImageView ImageView;
+    VkResource(VkGraphicsQueue& queue, VkFormat imageFormat, VkImageAspectFlagBits imageFlag, VkImageUsageFlags usageFlags) {
+        this->VkQueue = &queue;
+        uint32_t mipLevels = 1;
+        createImage(mipLevels, imageFormat, VK_IMAGE_TILING_OPTIMAL, usageFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        createImageView(mipLevels, imageFormat, imageFlag);
+    }
+    ~VkResource() {
+        vkDestroyImageView(VkQueue->device, ImageView, nullptr);
+        vkDestroyImage(VkQueue->device, Image, nullptr);
+        vkFreeMemory(VkQueue->device, ImageMemory, nullptr);
+    }
+private:
+    VkGraphicsQueue* VkQueue;
+    void createImage(uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties) {
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = VkQueue->swapChainExtent.width;
+        imageInfo.extent.height = VkQueue->swapChainExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = mipLevels;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = format;
+        imageInfo.tiling = tiling;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = usage;
+        imageInfo.samples = VkQueue->msaaSamples;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateImage(VkQueue->device, &imageInfo, nullptr, &Image) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create image!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetImageMemoryRequirements(VkQueue->device, Image, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(VkQueue->device, &allocInfo, nullptr, &ImageMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate image memory!");
+        }
+
+        vkBindImageMemory(VkQueue->device, Image, ImageMemory, 0);
+    }
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(VkQueue->physicalDevice, &memProperties);
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("failed to find suitable memory type!");
+    }
+    void createImageView(uint32_t mipLevels, VkFormat format, VkImageAspectFlags aspectFlags) {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = Image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = format;
+        viewInfo.subresourceRange.aspectMask = aspectFlags;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = mipLevels;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(VkQueue->device, &viewInfo, nullptr, &ImageView) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create image view!");
+        }
+    }
+
+};
+
 struct VkGraphicsResources : VkGraphicsQueue {
+    VkResource color;
+    VkResource depth;
+
     VkImage colorImage;
     VkDeviceMemory colorImageMemory;
     VkImageView colorImageView;
@@ -84,9 +170,13 @@ struct VkGraphicsResources : VkGraphicsQueue {
     VkImageView textureImageView;
     VkSampler textureSampler;
 
-    VkGraphicsResources(VulkanAPI* VkApplication) : VkGraphicsQueue(VkApplication) {
-        createColorResources();
-        createDepthResources();
+    VkGraphicsResources(VkWindow* pWindow) : VkGraphicsQueue(pWindow), 
+        color(*this, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+        depth(*this, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+        //createColorResources();
+        //createDepthResources();
         createTextureImage();
         createTextureImageView();
         createTextureSampler();
@@ -96,20 +186,28 @@ struct VkGraphicsResources : VkGraphicsQueue {
     }
     // Multi-Sample Anti-Aliasing
     void createColorResources() {
-        createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImage, colorImageMemory);
-        colorImageView = createImageView(colorImage, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+        createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, colorFormat, 
+            VK_IMAGE_TILING_OPTIMAL, 
+            VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, 
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+            colorImage, colorImageMemory);
+        colorImageView = createImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
     }
     // Depth Buffering
     void createDepthResources() {
-        createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, DepthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-        depthImageView = createImageView(depthImage, DepthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+        createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, 
+            VK_IMAGE_TILING_OPTIMAL, 
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+            depthImage, depthImageMemory);
+        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
     }
     // Texturing
     void createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
 
         for (size_t i = 0; i < swapChainImages.size(); i++) {
-            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+            swapChainImageViews[i] = createImageView(swapChainImages[i], colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
         }
     }
     // Memory buffers for swapchain images
@@ -118,8 +216,8 @@ struct VkGraphicsResources : VkGraphicsQueue {
 
         for (size_t i = 0; i < swapChainImageViews.size(); i++) {
             std::array<VkImageView, 3> attachments = {
-            colorImageView,
-            depthImageView,
+            color.ImageView,
+            depth.ImageView,
             swapChainImageViews[i]
             };
 
@@ -137,7 +235,6 @@ struct VkGraphicsResources : VkGraphicsQueue {
             }
         }
     }
-
     ~VkGraphicsResources() {
         vkDestroySampler(device, textureSampler, nullptr);
         vkDestroyImageView(device, textureImageView, nullptr);
@@ -365,7 +462,6 @@ private:
 
     }
 
-
     void createTextureImageView() {
         textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
     }
@@ -465,15 +561,207 @@ private:
 
 };
 
-struct VkGraphicsPipeline : VkGraphicsResources {
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
+struct memBuffer {
+    VkGraphicsUnit* pVkGPU;
+    void createBuffer(VkGraphicsUnit& VkGPU, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = size;
+        bufferInfo.usage = usage;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
-    std::vector<void*> uniformBuffersMapped;
+        if (vkCreateBuffer(VkGPU.device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create buffer!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(VkGPU.device, buffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(&VkGPU, memRequirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(VkGPU.device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate buffer memory!");
+        }
+
+        vkBindBufferMemory(VkGPU.device, buffer, bufferMemory, 0);
+    }
+    uint32_t findMemoryType(VkGraphicsUnit* pVkGPU, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(pVkGPU->physicalDevice, &memProperties);
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("failed to find suitable memory type!");
+    }
+    void copyBuffer(VkGraphicsUnit& VkGPU, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+        VkCommandBuffer commandBuffer = VkGPU.beginSingleTimeCommands();
+
+        VkBufferCopy copyRegion{};
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        VkGPU.endSingleTimeCommands(commandBuffer);
+    }
+};
+
+template<typename T>
+struct VkBufferObject : memBuffer {
+    VkBuffer buffer;
+    VkDeviceMemory memory;
+    VkBufferObject(VkGraphicsUnit& VkGPU, std::vector<T> const& content) {
+        this->pVkGPU = &VkGPU;
+        VkDeviceSize bufferSize = sizeof(T) * content.size();
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(VkGPU, bufferSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(VkGPU.device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, content.data(), (size_t)bufferSize);
+        vkUnmapMemory(VkGPU.device, stagingBufferMemory);
+
+        createBuffer(VkGPU, bufferSize,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            buffer, memory);
+
+        copyBuffer(VkGPU, stagingBuffer, buffer, bufferSize);
+
+        vkDestroyBuffer(VkGPU.device, stagingBuffer, nullptr);
+        vkFreeMemory(VkGPU.device, stagingBufferMemory, nullptr);
+    }
+    ~VkBufferObject() {
+        vkDestroyBuffer(pVkGPU->device, buffer, nullptr);
+        vkFreeMemory(pVkGPU->device, memory, nullptr);
+    }
+};
+
+template<typename T>
+struct VkDataBuffer : memBuffer {
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    std::vector<VkBuffer> buffer;
+    std::vector<VkDeviceMemory> memory;
+    VkDeviceSize bufferSize;
+
+    VkDataBuffer(VkGraphicsUnit& VkGPU, T& ubo, const int MAX_FRAMES_IN_FLIGHT) {
+        this->pVkGPU = &VkGPU;
+        this->MAX_FRAMES_IN_FLIGHT = MAX_FRAMES_IN_FLIGHT;
+        buffer.resize(MAX_FRAMES_IN_FLIGHT);
+        memory.resize(MAX_FRAMES_IN_FLIGHT);
+
+        bufferSize = sizeof(T);
+
+        createBuffer(VkGPU, bufferSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+            stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(VkGPU.device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, &ubo, (size_t)bufferSize);
+        vkUnmapMemory(VkGPU.device, stagingBufferMemory);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(VkGPU, bufferSize,
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT| VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT  | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                buffer[i], memory[i]);
+
+            copyBuffer(VkGPU, stagingBuffer, buffer[i], bufferSize);
+            //vkMapMemory(pVkGPU->device, memory[i], 0, bufferSize, 0, &map[i]);
+        }
+
+        
+        /*
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+        buffer.resize(MAX_FRAMES_IN_FLIGHT);
+        memory.resize(MAX_FRAMES_IN_FLIGHT);
+        map.resize(MAX_FRAMES_IN_FLIGHT);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(pVkGPU, bufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT  | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                buffer[i], memory[i]);
+
+            vkMapMemory(pVkGPU->device, memory[i], 0, bufferSize, 0, &map[i]);
+        }
+        */
+    }
+    void update(uint32_t currentImage, int width, int height) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        camMatrix cam{};
+        cam.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        cam.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        cam.proj = glm::perspective(glm::radians(45.0f), width / (float)height, 0.1f, 10.0f);
+        cam.proj[1][1] *= -1;
+
+        void* data;
+        vkMapMemory(pVkGPU->device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, &cam, (size_t)bufferSize);
+        vkUnmapMemory(pVkGPU->device, stagingBufferMemory);
+
+        copyBuffer(*pVkGPU, stagingBuffer, buffer[currentImage], bufferSize);
+        //memcpy(buffer[currentImage], &ubo, sizeof(ubo));
+    }
+    ~VkDataBuffer() {
+        vkDestroyBuffer(pVkGPU->device, stagingBuffer, nullptr);
+        vkFreeMemory(pVkGPU->device, stagingBufferMemory, nullptr);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroyBuffer(pVkGPU->device, buffer[i], nullptr);
+            vkFreeMemory(pVkGPU->device, memory[i], nullptr);
+        } 
+    }
+private:
+    
+    int MAX_FRAMES_IN_FLIGHT;
+
+    // Depreciated UBO update function
+    /*
+    void updateUniformBuffer(uint32_t currentImage) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        camMatrix ubo{};
+        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+        ubo.proj[1][1] *= -1;
+
+        memcpy(UBO.buffer[currentImage], &ubo, sizeof(ubo));
+    }
+    */
+};
+
+struct VkGraphicsPipeline : VkGraphicsResources {
+    VkBufferObject<Vertex> VBO;
+    VkBufferObject<uint16_t> EBO;
+
+    VkDataBuffer<camMatrix> UBO;
+
+    //std::vector<VkBuffer> UBO;
+    camMatrix camera;
 
     VkDescriptorSetLayout descriptorSetLayout;
     VkDescriptorPool descriptorPool;
@@ -482,10 +770,11 @@ struct VkGraphicsPipeline : VkGraphicsResources {
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
-    VkGraphicsPipeline(VulkanAPI* VkApplication) : VkGraphicsResources(VkApplication) {
-        createVertexBuffer();
-        createIndexBuffer();
-        createUniformBuffers();
+    VkGraphicsPipeline(VkWindow* pWindow) : VkGraphicsResources(pWindow),
+        VBO(*this, vertices), EBO(*this, indices), UBO(*this, camera, MAX_FRAMES_IN_FLIGHT) {
+        
+        //VkDataBuffer<VkBuffer> UBO(this, camMatrix, MAX_FRAMES_IN_FLIGHT);
+        //createUBO();
 
         createDescriptorSetLayout();
         createDescriptorPool();
@@ -498,78 +787,32 @@ struct VkGraphicsPipeline : VkGraphicsResources {
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
         vkDestroyRenderPass(device, renderPass, nullptr);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-            vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
-        }
+        
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
-        vkDestroyBuffer(device, indexBuffer, nullptr);
-        vkFreeMemory(device, indexBufferMemory, nullptr);
-
-        vkDestroyBuffer(device, vertexBuffer, nullptr);
-        vkFreeMemory(device, vertexBufferMemory, nullptr);
     }
 private:
-    // Shader Buffer Objects and Helper Functions
-    void createVertexBuffer() {
-        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, vertices.data(), (size_t)bufferSize);
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
-
-        copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-    }
-
-    void createIndexBuffer() {
-        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, indices.data(), (size_t)bufferSize);
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-
-        copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-    }
-
-    void createUniformBuffers()
+    /* Shader Buffer Objects and Helper Functions
+    void createUBO()
     {// Allocation of memory space to store UBO data
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-        uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+        UBO.resize(MAX_FRAMES_IN_FLIGHT);
+        UBO_memory.resize(MAX_FRAMES_IN_FLIGHT);
+        UBO_mapped.resize(MAX_FRAMES_IN_FLIGHT);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+            createBuffer(bufferSize, 
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                UBO[i], UBO_memory[i]);
 
-            vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+            vkMapMemory(device, UBO_memory[i], 0, bufferSize, 0, &UBO_mapped[i]);
         }
     }
-
+    */
     void createDescriptorSetLayout() {
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = 0;
@@ -613,8 +856,8 @@ private:
             throw std::runtime_error("failed to create descriptor pool!");
         }
     }
-
-    void createDescriptorSets() {
+    // TODO: Generalize "createDescriptorSets()" for any VkDataBuffer object
+    void createDescriptorSets() { 
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -629,9 +872,9 @@ private:
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffers[i];
+            bufferInfo.buffer = UBO.buffer[i]; // TODO: Generalize
             bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
+            bufferInfo.range = sizeof(camMatrix); // TODO: Generalize
 
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

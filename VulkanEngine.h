@@ -2,9 +2,11 @@
 
 class VkGraphicsEngine : VkGraphicsPipeline {
 public:
-    VkGraphicsEngine(VulkanAPI* VkApplication) : VkGraphicsPipeline(VkApplication) {
-        while (!glfwWindowShouldClose(pVkApp->window)) {
+    VkGraphicsEngine(VkWindow* pWindow) : VkGraphicsPipeline(pWindow) {
+        while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
+            UBO.update(currentFrame, swapChainExtent.width, swapChainExtent.height);
+            //updateUniformBuffer(currentFrame);
             drawFrame();
         }
 
@@ -16,26 +18,6 @@ public:
 private:
     uint32_t currentFrame = 0;
 
-    void cleanupSwapChain() {
-        vkDestroyImageView(device, colorImageView, nullptr);
-        vkDestroyImage(device, colorImage, nullptr);
-        vkFreeMemory(device, colorImageMemory, nullptr);
-
-        vkDestroyImageView(device, depthImageView, nullptr);
-        vkDestroyImage(device, depthImage, nullptr);
-        vkFreeMemory(device, depthImageMemory, nullptr);
-
-        for (auto framebuffer : swapChainFramebuffers) {
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
-        }
-
-        for (auto imageView : swapChainImageViews) {
-            vkDestroyImageView(device, imageView, nullptr);
-        }
-
-        vkDestroySwapchainKHR(device, swapChain, nullptr);
-    }
-
     void drawFrame() {
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -43,14 +25,13 @@ private:
         VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            
             recreateSwapChain();
             return;
         }
         else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
-
-        updateUniformBuffer(currentFrame);
 
         vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
@@ -91,8 +72,8 @@ private:
 
         result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || pVkApp->framebufferResized) {
-            pVkApp->framebufferResized = false;
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+            framebufferResized = false;
             recreateSwapChain();
         }
         else if (result != VK_SUCCESS) {
@@ -105,36 +86,46 @@ private:
     void recreateSwapChain() {
         int width = 0, height = 0;
         while (width == 0 || height == 0) {
-            glfwGetFramebufferSize(pVkApp->window, &width, &height);
+            glfwGetFramebufferSize(window, &width, &height);
             glfwWaitEvents();
         }
-
         vkDeviceWaitIdle(device);
-
         cleanupSwapChain();
 
         createSwapChain();
         createImageViews();
-        createColorResources();
-        createDepthResources();
+        color = VkResource(*this, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+        depth = VkResource(*this, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+        
         createFramebuffers();
     }
+    // TODO: Solve the swapchain cleanup problem
+    void cleanupSwapChain() {
+        /*
+        vkDestroyImageView(device, color.ImageView, nullptr);
+        vkDestroyImage(device, color.Image, nullptr);
+        vkFreeMemory(device, color.ImageMemory, nullptr);
 
-    void updateUniformBuffer(uint32_t currentImage) {
-        static auto startTime = std::chrono::high_resolution_clock::now();
+        vkDestroyImageView(device, depth.ImageView, nullptr);
+        vkDestroyImage(device, depth.Image, nullptr);
+        vkFreeMemory(device, depth.ImageMemory, nullptr);
+        */
 
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+        color.~VkResource();
+        depth.~VkResource();
 
-        UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-        ubo.proj[1][1] *= -1;
+        for (auto framebuffer : swapChainFramebuffers) {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
 
-        memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+        for (auto imageView : swapChainImageViews) {
+            vkDestroyImageView(device, imageView, nullptr);
+        }
+        
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
     }
-
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -175,11 +166,11 @@ private:
         scissor.extent = swapChainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        VkBuffer vertexBuffers[] = { vertexBuffer };
+        VkBuffer vertexBuffers[] = { VBO.buffer };
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-        vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffer, EBO.buffer, 0, VK_INDEX_TYPE_UINT16);
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 

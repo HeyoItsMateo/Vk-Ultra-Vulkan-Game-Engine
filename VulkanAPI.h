@@ -11,8 +11,7 @@
 #include <stdexcept>
 
 #include <vector>
-
-
+#include <array>
 
 bool hasStencilComponent(VkFormat format) {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
@@ -197,9 +196,93 @@ private:
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
         if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-            std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+            std::cerr << "Validation Layer: \n" << pCallbackData->pMessage << "\n\n";
 
             return VK_FALSE;
         }
+    }
+};
+
+struct VkUtils {
+    static VkDescriptorSetLayoutBinding bindSetLayout(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags stageFlags) {
+        VkDescriptorSetLayoutBinding layoutBinding{};
+        layoutBinding.binding = binding;
+        layoutBinding.descriptorCount = 1;
+        layoutBinding.descriptorType = descriptorType;
+        layoutBinding.pImmutableSamplers = nullptr;
+        layoutBinding.stageFlags = stageFlags;
+        return layoutBinding;
+    }
+    static VkWriteDescriptorSet writeDescriptor(uint32_t binding, VkDescriptorType descriptorType, VkDescriptorSet descriptorSet) {
+        VkWriteDescriptorSet writeDescriptor{};
+        writeDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptor.dstSet = descriptorSet;
+        writeDescriptor.dstBinding = binding;
+        writeDescriptor.dstArrayElement = 0;
+        writeDescriptor.descriptorType = descriptorType;
+        writeDescriptor.descriptorCount = 1;
+        return writeDescriptor;
+    }
+    static VkPipelineVertexInputStateCreateInfo vkCreateVertexInput(VkVertexInputBindingDescription& bindingDescription, std::vector<VkVertexInputAttributeDescription>& attributeDescriptions) {
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+        return vertexInputInfo;
+    }
+    static VkPipelineRasterizationStateCreateInfo vkCreateRaster(VkPolygonMode drawType, VkCullModeFlags cullType = VK_CULL_MODE_BACK_BIT, VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE) {
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = drawType;
+        rasterizer.lineWidth = 1.0f;
+        rasterizer.cullMode = cullType;
+        rasterizer.frontFace = frontFace;
+        rasterizer.depthBiasEnable = VK_FALSE;
+        return rasterizer;
+    }
+    static VkPipelineColorBlendStateCreateInfo vkCreateColorBlend(VkPipelineColorBlendAttachmentState& colorBlendAttachment, VkBool32 logicOpEnable, VkLogicOp logicOp = VK_LOGIC_OP_COPY) {
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.logicOpEnable = logicOpEnable;
+        colorBlending.logicOp = logicOp;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlendAttachment;
+        colorBlending.blendConstants[0] = 0.0f;
+        colorBlending.blendConstants[1] = 0.0f;
+        colorBlending.blendConstants[2] = 0.0f;
+        colorBlending.blendConstants[3] = 0.0f;
+        return colorBlending;
+    }
+    static VkRenderPassBeginInfo vkBeginRenderPass(VkRenderPass& renderPass, VkFramebuffer& swapChainFramebuffer, VkExtent2D swapChainExtent, std::array<VkClearValue, 2>& clearValues) {
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffer;
+        renderPassInfo.renderArea.offset = { 0, 0 };
+        renderPassInfo.renderArea.extent = swapChainExtent;
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
+
+        return renderPassInfo;
+    }
+    static VkPipelineDepthStencilStateCreateInfo vkCreateDepthStencil() {
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.depthBoundsTestEnable = VK_FALSE;
+
+        depthStencil.minDepthBounds = 0.0f; // Optional
+        depthStencil.maxDepthBounds = 1.0f; // Optional
+
+        depthStencil.stencilTestEnable = VK_FALSE;
+        depthStencil.front = {}; // Optional
+        depthStencil.back = {}; // Optional
+        return depthStencil;
     }
 };

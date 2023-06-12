@@ -38,5 +38,28 @@
     <None Include="shaders\vert.spv">
       <Filter>Resource Files\shaders</Filter>
     </None>
+    <None Include="shader.comp">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="shaders\comp.spv">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="VulkanEngine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanGPL.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanAPI.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanGPU.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VkDescriptors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

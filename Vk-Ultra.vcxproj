@@ -146,6 +146,8 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="shader.comp" />
+    <None Include="shaders\comp.spv" />
     <None Include="shaders\compile.bat" />
     <None Include="shaders\frag.spv" />
     <None Include="shaders\shader.frag" />
@@ -153,8 +155,9 @@
     <None Include="shaders\vert.spv" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="VkDescriptors.h" />
     <ClInclude Include="VulkanEngine.h" />
-    <ClInclude Include="VulkanGLP.h" />
+    <ClInclude Include="VulkanGPL.h" />
     <ClInclude Include="VulkanAPI.h" />
     <ClInclude Include="VulkanGPU.h" />
   </ItemGroup>

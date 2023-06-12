@@ -3,7 +3,6 @@
 #include <limits>
 #include <algorithm>
 #include <optional>
-#include <array>
 #include <set>
 
 const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -22,8 +21,8 @@ struct VkGraphicsUnit : VulkanAPI {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
 
-    
     VkQueue graphicsQueue;
+    VkQueue computeQueue;
     VkQueue presentQueue;
 
     VkGraphicsUnit(VkWindow* pWindow) : VulkanAPI(pWindow) {
@@ -70,23 +69,24 @@ private:
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-
-        if (deviceCount == 0) {
+        if (deviceCount == 0)
+        {// Debug failure to find GPU with Vulkan support
             throw std::runtime_error("failed to find GPUs with Vulkan support!");
         }
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
-
-        for (const auto& device : devices) {
-            if (isDeviceSuitable(device)) {
+        for (const auto& device : devices)
+        {// Pick most optimal GPU out of available devices
+            if (isDeviceSuitable(device)) 
+            {// Set device and specifications
                 physicalDevice = device;
                 msaaSamples = getMaxUsableSampleCount();
                 break;
             }
         }
-
-        if (physicalDevice == VK_NULL_HANDLE) {
+        if (physicalDevice == VK_NULL_HANDLE)
+        {// Debug failure to find/set GPU
             throw std::runtime_error("failed to find a suitable GPU!");
         }
     }
@@ -112,12 +112,9 @@ private:
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
         createInfo.pEnabledFeatures = &deviceFeatures;
-
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
@@ -134,7 +131,9 @@ private:
         }
 
         vkGetDeviceQueue(device, graphicsFamily.value(), 0, &graphicsQueue);
+        vkGetDeviceQueue(device, graphicsFamily.value(), 0, &computeQueue);
         vkGetDeviceQueue(device, presentFamily.value(), 0, &presentQueue);
+
     }
 
     bool isDeviceSuitable(VkPhysicalDevice device) {
@@ -162,7 +161,7 @@ private:
 
         int i = 0;
         for (const auto& queueFamily : queueFamilies) {
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            if ((queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
                 graphicsFamily = i;
             }
 
@@ -197,7 +196,6 @@ private:
         return requiredExtensions.empty();
     }
     
-
     VkSampleCountFlagBits getMaxUsableSampleCount() {
         VkPhysicalDeviceProperties physicalDeviceProperties;
         vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
@@ -311,8 +309,6 @@ struct VkDepthImage {
 };
 
 struct VkGraphicsQueue : VkGraphicsUnit {
-    VkCPU CPU;
-
     VkSwapchainKHR swapChain;
     VkExtent2D swapChainExtent;
     std::vector<VkImage> swapChainImages;
@@ -324,7 +320,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
     VkDepthImage depth;
 
     VkRenderPass renderPass;
-    VkGraphicsQueue(VkWindow* pWindow) : VkGraphicsUnit(pWindow), CPU(*this) {
+    VkGraphicsQueue(VkWindow* pWindow) : VkGraphicsUnit(pWindow) {
         createSwapChain();
         createImageViews();
 
@@ -334,6 +330,21 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         createRenderPass();
         createFramebuffers();
     }
+    ~VkGraphicsQueue() {
+        for (auto framebuffer : swapChainFramebuffers) {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
+
+        vkDestroyRenderPass(device, renderPass, nullptr);
+        destroyImageResource<VkColorImage>(color);
+        destroyImageResource<VkDepthImage>(depth);
+
+        for (auto imageView : swapChainImageViews) {
+            vkDestroyImageView(device, imageView, nullptr);
+        }
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+    }
+
     void createSwapChain() {
         querySwapChainSupport(physicalDevice);
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats);
@@ -348,7 +359,6 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         createInfo.surface = surface;
-
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -382,41 +392,43 @@ struct VkGraphicsQueue : VkGraphicsUnit {
 
         swapChainExtent = extent;
     }
-    void createImage(VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = swapChainExtent.width;
-        imageInfo.extent.height = swapChainExtent.height;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = mipLevels;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = format;
-        imageInfo.tiling = tiling;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = usage;
-        imageInfo.samples = msaaSamples;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    void createImageViews() {
+        swapChainImageViews.resize(swapChainImages.size());
 
-        if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image!");
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            createImageView(swapChainImages[i], swapChainImageViews[i], color.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
         }
-
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(device, image, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate image memory!");
-        }
-
-        vkBindImageMemory(device, image, imageMemory, 0);
     }
-    
+
+    void recreateSwapChain() {
+        int width = 0, height = 0;
+        while (width == 0 || height == 0) {
+            glfwGetFramebufferSize(window, &width, &height);
+            glfwWaitEvents();
+        }
+        vkDeviceWaitIdle(device);
+        cleanupSwapChain();
+
+        createSwapChain();
+        createImageViews();
+
+        createImageResource<VkColorImage>(color);
+        createImageResource<VkDepthImage>(depth);
+        createFramebuffers();
+    }
+    void cleanupSwapChain() {
+        for (auto framebuffer : swapChainFramebuffers) {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
+
+        destroyImageResource<VkColorImage>(color);
+        destroyImageResource<VkDepthImage>(depth);
+        for (auto imageView : swapChainImageViews) {
+            vkDestroyImageView(device, imageView, nullptr);
+        }
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+    }
+
     template<typename T>
     void createImageResource(T& resource) {
         createImage(resource.format, resource.tiling, resource.usage, resource.properties, resource.Image, resource.ImageMemory);
@@ -428,28 +440,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         vkDestroyImage(device, resource.Image, nullptr);
         vkFreeMemory(device, resource.ImageMemory, nullptr);
     }
-
-    ~VkGraphicsQueue() {
-        for (auto framebuffer : swapChainFramebuffers) {
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
-        }
-
-        vkDestroyRenderPass(device, renderPass, nullptr);
-        destroyImageResource<VkColorImage>(color);
-        destroyImageResource<VkDepthImage>(depth);
-
-        for (auto imageView : swapChainImageViews) {
-            vkDestroyImageView(device, imageView, nullptr);
-        }
-        vkDestroySwapchainKHR(device, swapChain, nullptr);
-    }
-    void createImageViews() {
-        swapChainImageViews.resize(swapChainImages.size());
-
-        for (size_t i = 0; i < swapChainImages.size(); i++) {
-            createImageView(swapChainImages[i], swapChainImageViews[i], color.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-        }
-    }
+ 
     void createFramebuffers() {
         swapChainFramebuffers.resize(swapChainImageViews.size());
 
@@ -474,7 +465,6 @@ struct VkGraphicsQueue : VkGraphicsUnit {
             }
         }
     }
-
 private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
         for (const auto& availableFormat : availableFormats) {
@@ -587,6 +577,7 @@ private:
             throw std::runtime_error("failed to create render pass!");
         }
     }
+
     VkFormat findDepthFormat() {
         return findSupportedFormat(
             { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
@@ -609,7 +600,41 @@ private:
 
         throw std::runtime_error("failed to find supported format!");
     }
+    
+    void createImage(VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = swapChainExtent.width;
+        imageInfo.extent.height = swapChainExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = mipLevels;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = format;
+        imageInfo.tiling = tiling;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = usage;
+        imageInfo.samples = msaaSamples;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
+        if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create image!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetImageMemoryRequirements(device, image, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate image memory!");
+        }
+
+        vkBindImageMemory(device, image, imageMemory, 0);
+    }
     void createImageView(VkImage& image, VkImageView& view, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -627,3 +652,4 @@ private:
         }
     }
 };
+

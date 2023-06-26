@@ -61,9 +61,9 @@ struct VulkanAPI {
     VkSurfaceKHR surface;
     VkDebugUtilsMessengerEXT debugMessenger;
 
-	VulkanAPI(VkWindow* pVkWindow) {
-        this->window = pVkWindow->window;
-        this->framebufferResized = pVkWindow->framebufferResized;
+	VulkanAPI(VkWindow& VkWindow) {
+        this->window = VkWindow.window;
+        this->framebufferResized = VkWindow.framebufferResized;
 
 		createInstance();
         setupDebugMessenger();

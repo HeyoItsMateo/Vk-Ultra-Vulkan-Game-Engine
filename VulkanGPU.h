@@ -25,7 +25,7 @@ struct VkGraphicsUnit : VulkanAPI {
     VkQueue computeQueue;
     VkQueue presentQueue;
 
-    VkGraphicsUnit(VkWindow* pWindow) : VulkanAPI(pWindow) {
+    VkGraphicsUnit(VkWindow& window) : VulkanAPI(window) {
         pickPhysicalDevice();
         createLogicalDevice();
     }
@@ -308,9 +308,9 @@ struct VkDepthImage {
     VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 };
 
-struct VkGraphicsQueue : VkGraphicsUnit {
-    VkSwapchainKHR swapChain;
-    VkExtent2D swapChainExtent;
+struct VkSwapChain : VkGraphicsUnit {
+    VkSwapchainKHR swapChainKHR;
+    VkExtent2D Extent;
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
     std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -320,7 +320,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
     VkDepthImage depth;
 
     VkRenderPass renderPass;
-    VkGraphicsQueue(VkWindow* pWindow) : VkGraphicsUnit(pWindow) {
+    VkSwapChain(VkWindow& window) : VkGraphicsUnit(window) {
         createSwapChain();
         createImageViews();
 
@@ -330,7 +330,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         createRenderPass();
         createFramebuffers();
     }
-    ~VkGraphicsQueue() {
+    ~VkSwapChain() {
         for (auto framebuffer : swapChainFramebuffers) {
             vkDestroyFramebuffer(device, framebuffer, nullptr);
         }
@@ -342,14 +342,14 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         for (auto imageView : swapChainImageViews) {
             vkDestroyImageView(device, imageView, nullptr);
         }
-        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        vkDestroySwapchainKHR(device, swapChainKHR, nullptr);
     }
 
     void createSwapChain() {
         querySwapChainSupport(physicalDevice);
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes);
-        VkExtent2D extent = chooseSwapExtent(capabilities);
+        Extent = chooseSwapExtent(capabilities);
 
         uint32_t imageCount = capabilities.minImageCount + 1;
         if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
@@ -362,7 +362,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
+        createInfo.imageExtent = Extent;
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -382,15 +382,13 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         createInfo.presentMode = presentMode;
         createInfo.clipped = VK_TRUE;
 
-        if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+        if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChainKHR) != VK_SUCCESS) {
             throw std::runtime_error("failed to create swap chain!");
         }
 
-        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+        vkGetSwapchainImagesKHR(device, swapChainKHR, &imageCount, nullptr);
         swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
-
-        swapChainExtent = extent;
+        vkGetSwapchainImagesKHR(device, swapChainKHR, &imageCount, swapChainImages.data());
     }
     void createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
@@ -426,7 +424,7 @@ struct VkGraphicsQueue : VkGraphicsUnit {
         for (auto imageView : swapChainImageViews) {
             vkDestroyImageView(device, imageView, nullptr);
         }
-        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        vkDestroySwapchainKHR(device, swapChainKHR, nullptr);
     }
 
     template<typename T>
@@ -456,8 +454,8 @@ struct VkGraphicsQueue : VkGraphicsUnit {
             framebufferInfo.renderPass = renderPass;
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = swapChainExtent.width;
-            framebufferInfo.height = swapChainExtent.height;
+            framebufferInfo.width = Extent.width;
+            framebufferInfo.height = Extent.height;
             framebufferInfo.layers = 1;
 
             if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
@@ -605,8 +603,8 @@ private:
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = swapChainExtent.width;
-        imageInfo.extent.height = swapChainExtent.height;
+        imageInfo.extent.width = Extent.width;
+        imageInfo.extent.height = Extent.height;
         imageInfo.extent.depth = 1;
         imageInfo.mipLevels = mipLevels;
         imageInfo.arrayLayers = 1;

@@ -2,8 +2,10 @@
 
 int main() {
     VkWindow window("Vulkan");
+    VkGraphicsEngine app(window);
+    VkGraphicsPipeline pipeline(app);
     try {
-        VkGraphicsEngine app(&window);
+        app.run(pipeline);
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;

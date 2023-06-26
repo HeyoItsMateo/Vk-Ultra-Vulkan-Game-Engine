@@ -7,6 +7,11 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtx/vector_angle.hpp>
+
+
 
 #include <variant>
 #include <chrono>
@@ -63,6 +68,190 @@ struct camMatrix {
     alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
+    camMatrix() {
+        model = glm::mat4(1.f);
+        view = glm::mat4(1.0f);
+        proj = glm::mat4(1.0f);
+    }
+    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg, float nearPlane, float farPlane)
+    {	// Initializes matrices since otherwise they will be the null matrix
+        if (!glfwJoystickPresent(GLFW_JOYSTICK_1)) {
+            keyboard_Input(window, extent);
+        }
+        else {
+            keyboard_Input(window, extent);
+            controller_Input(window);
+        }
+        view = glm::lookAt(position, position + Orientation, Up);
+        proj = glm::perspective(glm::radians(FOVdeg), (float)extent.width / extent.height, nearPlane, farPlane);
+        proj[1][1] *= -1;
+    }
+protected:
+    glm::vec3 position = glm::vec3(2.f, 0.f, 2.0f);
+    glm::vec3 Orientation = glm::vec3(-2.f, 0.f, -2.f);
+    glm::vec3 Up = glm::vec3(0.f, 1.f, 0.f);
+    float velocity = 0.05f;
+    float sensitivity = 1.75f;
+private:
+
+    bool firstClick = true;
+    void keyboard_Input(GLFWwindow* window, VkExtent2D extent) {
+        if (glfwGetKey(window, GLFW_KEY_W))
+        {
+            position += velocity * Orientation;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_A))
+        {
+            position -= velocity * glm::normalize(glm::cross(Orientation, Up));
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_S))
+        {
+            position -= velocity * Orientation;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_D))
+        {
+            position += velocity * glm::normalize(glm::cross(Orientation, Up));
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_SPACE))
+        {
+            position += velocity * Up;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL))
+        {
+            position -= velocity * Up;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
+        {
+            velocity = 0.01f;
+        }
+
+        else if (!glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
+        {
+            velocity = 0.005f;
+        }
+
+        // Handles mouse inputs
+        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
+        {	// Hides mouse cursor
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+            if (firstClick)
+            {	// Prevents camera from jumping on the first click
+                glfwSetCursorPos(window, (extent.width / 2), (extent.height / 2));
+                firstClick = false;
+            }
+            // Stores the coordinates of the cursor
+            double mouseX;
+            double mouseY;
+
+            // Fetches the coordinates of the cursor
+            glfwGetCursorPos(window, &mouseX, &mouseY);
+
+            // Normalizes and shifts the coordinates of the cursor such that they begin in the middle of the screen
+            // and then "transforms" them into degrees 
+            float rotX = sensitivity * (float)(mouseY - (extent.height / 2)) / extent.height;
+            float rotY = sensitivity * (float)(mouseX - (extent.width / 2)) / extent.width;
+
+            // Calculates upcoming vertical change in the Orientation
+            glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotX), glm::normalize(glm::cross(Orientation, Up)));
+
+            if (abs(glm::angle(newOrientation, Up) - glm::radians(90.0f)) <= glm::radians(85.0f))
+            {	// Decides whether or not the next vertical Orientation is legal or not
+                Orientation = newOrientation;
+            }
+
+            // Rotates the Orientation left and right
+            Orientation = glm::rotate(Orientation, glm::radians(-rotY), Up);
+
+            // Sets mouse cursor to the middle of the screen so that it doesn't end up roaming around
+            glfwSetCursorPos(window, (extent.width / 2), (extent.height / 2));
+        }
+        else if (!glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
+        {	// Unhides cursor since camera is not looking around anymore
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            // Makes sure the next time the camera looks around it doesn't jump
+            firstClick = true;
+        }
+    }
+    void controller_Input(GLFWwindow* window)
+    {
+        // Button Mapping
+        int buttonCount;
+        const unsigned char* buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttonCount);
+        if (buttons[1])
+        {// X button
+            position += 2 * velocity * Up;
+        }
+        if (buttons[2])
+        {
+            position -= 2 * velocity * Up;
+        }
+        if (buttons[10])
+        {// left stick in
+            velocity *= 10.f;
+        }
+        if (buttons[11])
+        {// right stick in
+            velocity *= 10.f;
+        }
+        if (buttons[14])
+        {// dpad up
+            velocity *= 100.0f;
+        }
+        if (buttons[15])// dpad down
+        {
+            velocity /= 2.f;
+        }
+        if (buttons[5])// right bumper
+        {
+            float rotZ = sensitivity;
+            glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), glm::radians(rotZ), Orientation);
+            Up = glm::mat3(roll_mat) * Up;
+        }
+        if (buttons[4])
+        {
+            float rotZ = -sensitivity;
+            glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), glm::radians(rotZ), Orientation);
+            Up = glm::mat3(roll_mat) * Up;
+        }
+
+        // Controller Joystick Settings
+        int axesCount;
+        const float* axes = glfwGetJoystickAxes(GLFW_JOYSTICK_1, &axesCount);
+        // Left and Right
+        if ((axes[0] > 0.1) || (axes[0] < -0.1))
+        {
+            position += velocity * axes[0] * glm::normalize(glm::cross(Orientation, Up));
+        }
+        // Forward and Backwards
+        if ((axes[1] > 0.1) || (axes[1] < -0.1))
+        {
+            position -= velocity * axes[1] * Orientation;
+        }
+        if ((axes[2] > 0.1) || (axes[2] < -0.1))
+        {
+            float rotX = sensitivity * axes[2];
+            Orientation = glm::rotate(Orientation, glm::radians(-rotX), Up);
+
+        }
+        if ((axes[5] > 0.15) || (axes[5] < -0.15))
+        {
+            float rotY = sensitivity * axes[5];
+            // Calculates upcoming vertical change in the Orientation
+            glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotY), glm::normalize(glm::cross(Orientation, Up)));
+
+            if (abs(glm::angle(newOrientation, Up) - glm::radians(90.0f)) <= glm::radians(85.0f))
+            {	// Decides whether or not the next vertical Orientation is legal or not
+                Orientation = newOrientation;
+            }
+        }
+    }
 };
 
 struct UBO {
@@ -96,15 +285,15 @@ private:
 
 
 const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+    {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
 
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+    {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
 };
 
 const std::vector<uint16_t> indices = {
@@ -523,21 +712,19 @@ struct VkDataBuffer : memBuffer {
             //vkMapMemory(pVkGPU->device, memory[i], 0, bufferSize, 0, &map[i]);
         }
     }
-    void update(uint32_t currentImage, int width, int height) {
+    void update(uint32_t currentImage, camMatrix& camera) {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-        camMatrix cam{};
-        cam.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        cam.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        cam.proj = glm::perspective(glm::radians(45.0f), width / (float)height, 0.1f, 10.0f);
-        cam.proj[1][1] *= -1;
+        camera.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        //camera.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        
 
         void* data;
         vkMapMemory(pVkGPU->device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, &cam, (size_t)bufferSize);
+        memcpy(data, &camera, (size_t)bufferSize);
         vkUnmapMemory(pVkGPU->device, stagingBufferMemory);
 
         copyBuffer(stagingBuffer, buffer[currentImage], bufferSize);
@@ -727,7 +914,7 @@ private:
 
 
 
-struct VkGraphicsPipeline : VkGraphicsQueue {
+struct VkGraphicsPipeline {
     VkBufferObject<Vertex> VBO;
     VkBufferObject<uint16_t> EBO;
     
@@ -745,25 +932,33 @@ struct VkGraphicsPipeline : VkGraphicsQueue {
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
-    VkGraphicsPipeline(VkWindow* pWindow) : VkGraphicsQueue(pWindow),
-        VBO(*this, vertices), EBO(*this, indices),
+    VkGraphicsPipeline(VkSwapChain& swapChain) : 
+        VBO(swapChain, vertices), EBO(swapChain, indices),
 
-        ubo(*this, uniforms),
-        uniformSet(*this, ubo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+        ubo(swapChain, uniforms),
+        uniformSet(swapChain, ubo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
 
-        shaderStorage(swapChainExtent.height,swapChainExtent.width),
-        ssbo(*this, shaderStorage),
-        storageSet(*this, ssbo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT),
+        shaderStorage(swapChain.Extent.height,swapChain.Extent.width),
+        ssbo(swapChain, shaderStorage),
+        storageSet(swapChain, ssbo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT),
 
-        planks(*this, "textures/planks.png"),
-        textureSet(*this, planks) {
-
+        planks(swapChain, "textures/planks.png"),
+        textureSet(swapChain, planks) {
+        pDevice = &swapChain.device;
+        pExtent = &swapChain.Extent;
+        pMsaaSamples = &swapChain.msaaSamples;
+        pRenderPass = &swapChain.renderPass;
         createShaderPipeline<Vertex>();
     }
     ~VkGraphicsPipeline() {
-        vkDestroyPipeline(device, graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+        vkDestroyPipeline(*pDevice, graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(*pDevice, pipelineLayout, nullptr);
     }
+protected:
+    VkDevice* pDevice;
+    VkExtent2D* pExtent;
+    VkSampleCountFlagBits* pMsaaSamples;
+    VkRenderPass* pRenderPass;
 private:
     void particles(std::vector<Particle>& particles) {
         std::default_random_engine rndEngine((unsigned)time(nullptr));
@@ -772,7 +967,7 @@ private:
         for (auto& particle : particles) {
             float r = 0.25f * sqrt(rndDist(rndEngine));
             float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
-            float x = r * cos(theta) * swapChainExtent.height / swapChainExtent.width;
+            float x = r * cos(theta) * (*pExtent).height / (*pExtent).width;
             float y = r * sin(theta);
             float z = r * cos(theta) / sin(theta);
             particle.position = glm::vec3(x, y, z);
@@ -786,9 +981,9 @@ private:
         std::vector<VkDescriptorSetLayout> layouts = { uniformSet.SetLayout, textureSet.SetLayout, storageSet.SetLayout };
         vkLoadSetLayout(layouts);
 
-        VkShader vertShader(*this, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        VkShader fragShader(*this, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-        VkShader compShader(*this, "shaders/comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+        VkShader vertShader(*pDevice, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        VkShader fragShader(*pDevice, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkShader compShader(*pDevice, "shaders/comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 
         VkPipelineShaderStageCreateInfo shaderStages[] = { vertShader.stageInfo, fragShader.stageInfo, compShader.stageInfo };
 
@@ -812,7 +1007,7 @@ private:
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         multisampling.sampleShadingEnable = VK_TRUE; // enable sample shading in the pipeline
         multisampling.minSampleShading = .2f; // min fraction for sample shading; closer to one is smoother
-        multisampling.rasterizationSamples = msaaSamples;
+        multisampling.rasterizationSamples = *pMsaaSamples;
 
         VkPipelineDepthStencilStateCreateInfo depthStencil = VkUtils::vkCreateDepthStencil();
 
@@ -843,12 +1038,12 @@ private:
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = pipelineLayout;
-        pipelineInfo.renderPass = renderPass;
+        pipelineInfo.renderPass = *pRenderPass;
         pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
         pipelineInfo.pDepthStencilState = &depthStencil;
 
-        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(*pDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create graphics pipeline!");
         }
     }
@@ -858,18 +1053,17 @@ private:
         pipelineLayoutInfo.setLayoutCount = SetLayout.size();
         pipelineLayoutInfo.pSetLayouts = SetLayout.data();
 
-        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(*pDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
         }
     }
     struct VkShader {
-        VkGraphicsUnit* pVkGPU;
         VkShaderModule shaderModule;
         VkPipelineShaderStageCreateInfo stageInfo{};
-        VkShader(VkGraphicsUnit& VkGPU, const std::string& filename, VkShaderStageFlagBits shaderStage) {
-            pVkGPU = &VkGPU;
+        VkShader(VkDevice& device, const std::string& filename, VkShaderStageFlagBits shaderStage) {
+            pDevice = &device;
             auto shaderCode = readFile(filename);
-            createShaderModule(VkGPU, shaderCode);
+            createShaderModule(device, shaderCode);
 
             stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             stageInfo.stage = shaderStage;
@@ -877,16 +1071,17 @@ private:
             stageInfo.pName = "main";
         }
         ~VkShader() {
-            vkDestroyShaderModule(pVkGPU->device, shaderModule, nullptr);
+            vkDestroyShaderModule(*pDevice, shaderModule, nullptr);
         }
     private:
-        void createShaderModule(VkGraphicsUnit& VkGPU, const std::vector<char>& code) {
+        VkDevice* pDevice;
+        void createShaderModule(VkDevice& device, const std::vector<char>& code) {
             VkShaderModuleCreateInfo createInfo{};
             createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
             createInfo.codeSize = code.size();
             createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
-            if (vkCreateShaderModule(VkGPU.device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+            if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create shader module!");
             }
         }

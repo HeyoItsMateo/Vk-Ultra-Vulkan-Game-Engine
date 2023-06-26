@@ -155,7 +155,10 @@
     <None Include="shaders\vert.spv" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Camera.h" />
+    <ClInclude Include="DBO.h" />
     <ClInclude Include="VkDescriptors.h" />
+    <ClInclude Include="Model.h" />
     <ClInclude Include="VulkanEngine.h" />
     <ClInclude Include="VulkanGPL.h" />
     <ClInclude Include="VulkanAPI.h" />

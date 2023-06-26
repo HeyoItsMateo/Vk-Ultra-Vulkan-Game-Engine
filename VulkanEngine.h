@@ -1,30 +1,5 @@
 #include "VulkanGPL.h"
 
-
-void userInput(GLFWwindow* window, int key, int scancode, int action, int mods)
-{// Sets Keyboard Commands
-    switch (action)
-    {// Checks for user keypress
-    case GLFW_PRESS:
-        switch (key)
-        {// Checks for keypress type and returns corresponding action
-        case GLFW_KEY_ESCAPE:
-            glfwSetWindowShouldClose(window, true);
-            break;
-        case GLFW_KEY_C:
-            //wireframe = !wireframe;
-            break;
-        case GLFW_KEY_V:
-            //vSync = !vSync;
-            //glfwSwapInterval(vSync);
-            break;
-        }
-        break;
-    default:
-        break;
-    }
-}
-
 struct VkSyncObjects {
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -72,14 +47,14 @@ public:
     void run(VkGraphicsPipeline& pipeline) {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
-            glfwSetKeyCallback(window, userInput);
-            pipeline.uniforms.camera.update(window, Extent, 45.0f, 0.1f, 10.0f);
-            pipeline.ubo.update(currentFrame, pipeline.uniforms.camera);
-            //updateUniformBuffer(currentFrame);
+            std::jthread t1(glfwSetKeyCallback, window, userInput);
 
+            pipeline.uniforms.update(window, Extent);
+            pipeline.ubo.update(currentFrame, &pipeline.uniforms);
+            
+            
             drawFrame(pipeline);
         }
-
         vkDeviceWaitIdle(device);
     }
     ~VkGraphicsEngine() {
@@ -159,14 +134,14 @@ private:
         vkCmdSetScissor(cmdUnit.commandBuffers[currentFrame], 0, 1, &scissor);
 
         // Pipeline binding
-        VkDescriptorSet sets[] = { pipeline.uniformSet.Sets[currentFrame], pipeline.textureSet.Sets[currentFrame], pipeline.storageSet.Sets[currentFrame] };
+        VkDescriptorSet sets[] = { pipeline.ubo.Sets[currentFrame], pipeline.textureSet.Sets[currentFrame], pipeline.ssbo.Sets[currentFrame] };
         vkCmdBindDescriptorSets(cmdUnit.commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipelineLayout, 0, 3, sets, 0, nullptr);
         vkCmdBindPipeline(cmdUnit.commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.graphicsPipeline);
         
         // Vertex binding (objects to draw)
         VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(cmdUnit.commandBuffers[currentFrame], 0, 1, &pipeline.VBO.buffer, offsets);
-        vkCmdBindIndexBuffer(cmdUnit.commandBuffers[currentFrame], pipeline.EBO.buffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindVertexBuffers(cmdUnit.commandBuffers[currentFrame], 0, 1, &pipeline.VBO.mBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdUnit.commandBuffers[currentFrame], pipeline.EBO.mBuffer, 0, VK_INDEX_TYPE_UINT16);
 
         // Draw Command
         vkCmdDrawIndexed(cmdUnit.commandBuffers[currentFrame], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);

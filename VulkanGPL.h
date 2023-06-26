@@ -1,5 +1,3 @@
-#include "VulkanGPU.h"
-
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -11,34 +9,32 @@
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/vector_angle.hpp>
 
-
+#include <execution>
 
 #include <variant>
 #include <chrono>
 #include <random>
 
-struct Vertex {
-    glm::vec3 pos;
-    glm::vec3 color;
-    glm::vec2 texCoord;
+#include "VulkanGPU.h"
+#include "Camera.h"
+#include "Model.h"
+#include "DBO.h"
 
-    static VkVertexInputBindingDescription vkCreateBindings() {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+const std::vector<Vertex> vertices = {
+    {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
 
-        return bindingDescription;
-    }
+    {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+};
 
-    static std::vector<VkVertexInputAttributeDescription> vkCreateAttributes() {
-        std::vector<VkVertexInputAttributeDescription> Attributes{
-            {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)}, // Position
-            {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)}, // Color
-            {2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord)}     // Texture Coordinate
-        };
-        return Attributes;
-    }
+const std::vector<uint16_t> indices = {
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4
 };
 
 struct Particle {
@@ -64,199 +60,18 @@ struct Particle {
     }
 };
 
-struct camMatrix {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-    camMatrix() {
-        model = glm::mat4(1.f);
-        view = glm::mat4(1.0f);
-        proj = glm::mat4(1.0f);
-    }
-    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg, float nearPlane, float farPlane)
-    {	// Initializes matrices since otherwise they will be the null matrix
-        if (!glfwJoystickPresent(GLFW_JOYSTICK_1)) {
-            keyboard_Input(window, extent);
-        }
-        else {
-            keyboard_Input(window, extent);
-            controller_Input(window);
-        }
-        view = glm::lookAt(position, position + Orientation, Up);
-        proj = glm::perspective(glm::radians(FOVdeg), (float)extent.width / extent.height, nearPlane, farPlane);
-        proj[1][1] *= -1;
-    }
-protected:
-    glm::vec3 position = glm::vec3(2.f, 0.f, 2.0f);
-    glm::vec3 Orientation = glm::vec3(-2.f, 0.f, -2.f);
-    glm::vec3 Up = glm::vec3(0.f, 1.f, 0.f);
-    float velocity = 0.05f;
-    float sensitivity = 1.75f;
-private:
-
-    bool firstClick = true;
-    void keyboard_Input(GLFWwindow* window, VkExtent2D extent) {
-        if (glfwGetKey(window, GLFW_KEY_W))
-        {
-            position += velocity * Orientation;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_A))
-        {
-            position -= velocity * glm::normalize(glm::cross(Orientation, Up));
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_S))
-        {
-            position -= velocity * Orientation;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_D))
-        {
-            position += velocity * glm::normalize(glm::cross(Orientation, Up));
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_SPACE))
-        {
-            position += velocity * Up;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL))
-        {
-            position -= velocity * Up;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
-        {
-            velocity = 0.01f;
-        }
-
-        else if (!glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
-        {
-            velocity = 0.005f;
-        }
-
-        // Handles mouse inputs
-        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
-        {	// Hides mouse cursor
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-
-            if (firstClick)
-            {	// Prevents camera from jumping on the first click
-                glfwSetCursorPos(window, (extent.width / 2), (extent.height / 2));
-                firstClick = false;
-            }
-            // Stores the coordinates of the cursor
-            double mouseX;
-            double mouseY;
-
-            // Fetches the coordinates of the cursor
-            glfwGetCursorPos(window, &mouseX, &mouseY);
-
-            // Normalizes and shifts the coordinates of the cursor such that they begin in the middle of the screen
-            // and then "transforms" them into degrees 
-            float rotX = sensitivity * (float)(mouseY - (extent.height / 2)) / extent.height;
-            float rotY = sensitivity * (float)(mouseX - (extent.width / 2)) / extent.width;
-
-            // Calculates upcoming vertical change in the Orientation
-            glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotX), glm::normalize(glm::cross(Orientation, Up)));
-
-            if (abs(glm::angle(newOrientation, Up) - glm::radians(90.0f)) <= glm::radians(85.0f))
-            {	// Decides whether or not the next vertical Orientation is legal or not
-                Orientation = newOrientation;
-            }
-
-            // Rotates the Orientation left and right
-            Orientation = glm::rotate(Orientation, glm::radians(-rotY), Up);
-
-            // Sets mouse cursor to the middle of the screen so that it doesn't end up roaming around
-            glfwSetCursorPos(window, (extent.width / 2), (extent.height / 2));
-        }
-        else if (!glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
-        {	// Unhides cursor since camera is not looking around anymore
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-            // Makes sure the next time the camera looks around it doesn't jump
-            firstClick = true;
-        }
-    }
-    void controller_Input(GLFWwindow* window)
-    {
-        // Button Mapping
-        int buttonCount;
-        const unsigned char* buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttonCount);
-        if (buttons[1])
-        {// X button
-            position += 2 * velocity * Up;
-        }
-        if (buttons[2])
-        {
-            position -= 2 * velocity * Up;
-        }
-        if (buttons[10])
-        {// left stick in
-            velocity *= 10.f;
-        }
-        if (buttons[11])
-        {// right stick in
-            velocity *= 10.f;
-        }
-        if (buttons[14])
-        {// dpad up
-            velocity *= 100.0f;
-        }
-        if (buttons[15])// dpad down
-        {
-            velocity /= 2.f;
-        }
-        if (buttons[5])// right bumper
-        {
-            float rotZ = sensitivity;
-            glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), glm::radians(rotZ), Orientation);
-            Up = glm::mat3(roll_mat) * Up;
-        }
-        if (buttons[4])
-        {
-            float rotZ = -sensitivity;
-            glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), glm::radians(rotZ), Orientation);
-            Up = glm::mat3(roll_mat) * Up;
-        }
-
-        // Controller Joystick Settings
-        int axesCount;
-        const float* axes = glfwGetJoystickAxes(GLFW_JOYSTICK_1, &axesCount);
-        // Left and Right
-        if ((axes[0] > 0.1) || (axes[0] < -0.1))
-        {
-            position += velocity * axes[0] * glm::normalize(glm::cross(Orientation, Up));
-        }
-        // Forward and Backwards
-        if ((axes[1] > 0.1) || (axes[1] < -0.1))
-        {
-            position -= velocity * axes[1] * Orientation;
-        }
-        if ((axes[2] > 0.1) || (axes[2] < -0.1))
-        {
-            float rotX = sensitivity * axes[2];
-            Orientation = glm::rotate(Orientation, glm::radians(-rotX), Up);
-
-        }
-        if ((axes[5] > 0.15) || (axes[5] < -0.15))
-        {
-            float rotY = sensitivity * axes[5];
-            // Calculates upcoming vertical change in the Orientation
-            glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotY), glm::normalize(glm::cross(Orientation, Up)));
-
-            if (abs(glm::angle(newOrientation, Up) - glm::radians(90.0f)) <= glm::radians(85.0f))
-            {	// Decides whether or not the next vertical Orientation is legal or not
-                Orientation = newOrientation;
-            }
-        }
-    }
-};
-
 struct UBO {
+    modelMatrix model;
     camMatrix camera;
     float dt;
+    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg = 45.f, float nearPlane = 0.1f, float farPlane = 10.f) {
+        std::jthread t1( [this] 
+            { model.update(); }
+        );
+        std::jthread t2( [this, window, extent, FOVdeg, nearPlane, farPlane] 
+            { camera.update(window, extent, FOVdeg, nearPlane, farPlane); }
+        );
+    }
 };
 
 struct SSBO {
@@ -269,650 +84,22 @@ private:
         std::default_random_engine rndEngine((unsigned)time(nullptr));
         std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
 
-        for (auto& particle : particles) {
-            float r = 0.25f * sqrt(rndDist(rndEngine));
-            float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
-            float x = r * cos(theta) * height / width;
-            float y = r * sin(theta);
-            float z = r * cos(theta) / sin(theta);
-            particle.position = glm::vec3(x, y, z);
-            particle.velocity = glm::normalize(glm::vec3(x, y, z)) * 0.00025f;
-            particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
-        }
+        std::for_each(std::execution::par,
+            particles.begin(), particles.end(),
+            [&](Particle particle)
+            {// Populate particle system
+                float r = 0.25f * sqrt(rndDist(rndEngine));
+                float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
+                float x = r * cos(theta) * height / width;
+                float y = r * sin(theta);
+                float z = r * cos(theta) / sin(theta);
+                particle.position = glm::vec3(x, y, z);
+                particle.velocity = glm::normalize(glm::vec3(x, y, z)) * 0.00025f;
+                particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
+            });
 
     }
 };
-
-
-const std::vector<Vertex> vertices = {
-    {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
-
-    {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-};
-
-const std::vector<uint16_t> indices = {
-    0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4
-};
-
-struct memBuffer {
-    VkGraphicsUnit* pVkGPU;
-    void createBuffer(VkGraphicsUnit& VkGPU, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
-        VkBufferCreateInfo bufferInfo{};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = size;
-        bufferInfo.usage = usage;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateBuffer(VkGPU.device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create buffer!");
-        }
-
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(VkGPU.device, buffer, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = VkGPU.findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(VkGPU.device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate buffer memory!");
-        }
-
-        vkBindBufferMemory(VkGPU.device, buffer, bufferMemory, 0);
-    }
-};
-
-struct VkTexture : memBuffer {
-    VkImage Image;
-    VkImageView ImageView;
-    VkDeviceMemory ImageMemory;
-    uint32_t mipLevels;
-
-    VkSampler Sampler;
-    int texWidth, texHeight, texChannels;
-
-    VkCPU CPU;
-
-    VkTexture(VkGraphicsUnit& VkGPU, const char* filename): CPU(VkGPU) {
-        this->pVkGPU = &VkGPU;
-        
-        stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
-        mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
-
-        if (!pixels) {
-            throw std::runtime_error("failed to load texture image!");
-        }
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(VkGPU, imageSize, 
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-            stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(VkGPU.device, stagingBufferMemory, 0, imageSize, 0, &data);
-        memcpy(data, pixels, static_cast<size_t>(imageSize));
-        vkUnmapMemory(VkGPU.device, stagingBufferMemory);
-
-        stbi_image_free(pixels);
-
-        createImage(VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, 
-            VK_IMAGE_TILING_OPTIMAL, 
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        copyBufferToImage(stagingBuffer);
-        //transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-
-        vkDestroyBuffer(VkGPU.device, stagingBuffer, nullptr);
-        vkFreeMemory(VkGPU.device, stagingBufferMemory, nullptr);
-
-        generateMipmaps(VK_FORMAT_R8G8B8A8_SRGB);
-        createImageView(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-        createTextureSampler();
-    }
-    ~VkTexture() {
-        vkDestroySampler(pVkGPU->device, Sampler, nullptr);
-        vkDestroyImageView(pVkGPU->device, ImageView, nullptr);
-
-        vkDestroyImage(pVkGPU->device, Image, nullptr);
-        vkFreeMemory(pVkGPU->device, ImageMemory, nullptr);
-    }
-private:
-    void createImage(VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = texWidth;
-        imageInfo.extent.height = texHeight;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = mipLevels;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = format;
-        imageInfo.tiling = tiling;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = usage;
-        imageInfo.samples = numSamples;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateImage(pVkGPU->device, &imageInfo, nullptr, &Image) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image!");
-        }
-
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(pVkGPU->device, Image, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = pVkGPU->findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(pVkGPU->device, &allocInfo, nullptr, &ImageMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate image memory!");
-        }
-
-        vkBindImageMemory(pVkGPU->device, Image, ImageMemory, 0);
-    }
-    void createImageView(VkFormat format, VkImageAspectFlags aspectFlags) {
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = Image;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = format;
-        viewInfo.subresourceRange.aspectMask = aspectFlags;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = mipLevels;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-
-        if (vkCreateImageView(pVkGPU->device, &viewInfo, nullptr, &ImageView) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image view!");
-        }
-    }
-
-    void transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
-
-        VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = oldLayout;
-        barrier.newLayout = newLayout;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = Image;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = mipLevels;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-
-        VkPipelineStageFlags sourceStage;
-        VkPipelineStageFlags destinationStage;
-
-        if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-            barrier.srcAccessMask = 0;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else {
-            throw std::invalid_argument("unsupported layout transition!");
-        }
-
-        vkCmdPipelineBarrier(
-            commandBuffer,
-            sourceStage, destinationStage,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &barrier
-        );
-
-        CPU.endSingleTimeCommands(commandBuffer);
-    }
-    void copyBufferToImage(VkBuffer buffer) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
-
-        VkBufferImageCopy region{};
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
-        region.bufferImageHeight = 0;
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel = 0;
-        region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
-        region.imageOffset = { 0, 0, 0 };
-        region.imageExtent = {
-            static_cast<uint32_t>(texWidth),
-            static_cast<uint32_t>(texHeight),
-            1
-        };
-
-        vkCmdCopyBufferToImage(commandBuffer, buffer, Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-        CPU.endSingleTimeCommands(commandBuffer);
-    }
-    void generateMipmaps(VkFormat imageFormat) {
-        // Check if image format supports linear blitting
-        VkFormatProperties formatProperties;
-        vkGetPhysicalDeviceFormatProperties(pVkGPU->physicalDevice, imageFormat, &formatProperties);
-
-        if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
-            throw std::runtime_error("texture image format does not support linear blitting!");
-        }
-
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
-
-        VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.image = Image;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-        barrier.subresourceRange.levelCount = 1;
-
-        int32_t mipWidth = texWidth;
-        int32_t mipHeight = texHeight;
-
-        for (uint32_t i = 1; i < mipLevels; i++) {
-            barrier.subresourceRange.baseMipLevel = i - 1;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-            vkCmdPipelineBarrier(commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-                0, nullptr,
-                0, nullptr,
-                1, &barrier);
-
-            VkImageBlit blit{};
-            blit.srcOffsets[0] = { 0, 0, 0 };
-            blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
-            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            blit.srcSubresource.mipLevel = i - 1;
-            blit.srcSubresource.baseArrayLayer = 0;
-            blit.srcSubresource.layerCount = 1;
-            blit.dstOffsets[0] = { 0, 0, 0 };
-            blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
-            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            blit.dstSubresource.mipLevel = i;
-            blit.dstSubresource.baseArrayLayer = 0;
-            blit.dstSubresource.layerCount = 1;
-
-            vkCmdBlitImage(commandBuffer,
-                Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1, &blit,
-                VK_FILTER_LINEAR);
-
-            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vkCmdPipelineBarrier(commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
-                0, nullptr,
-                0, nullptr,
-                1, &barrier);
-
-            if (mipWidth > 1) mipWidth /= 2;
-            if (mipHeight > 1) mipHeight /= 2;
-        }
-
-        barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-        vkCmdPipelineBarrier(commandBuffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
-            0, nullptr,
-            0, nullptr,
-            1, &barrier);
-
-        CPU.endSingleTimeCommands(commandBuffer);
-
-    }
-
-    void createTextureSampler() {
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(pVkGPU->physicalDevice, &properties);
-
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.minLod = 0.f;
-        samplerInfo.maxLod = static_cast<float>(mipLevels);
-        samplerInfo.mipLodBias = 0.0f; // Optional
-
-        if (vkCreateSampler(pVkGPU->device, &samplerInfo, nullptr, &Sampler) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create texture sampler!");
-        }
-    }
-};
-
-template<typename T>
-struct VkBufferObject : memBuffer {
-    VkCPU CPU;
-    VkBuffer buffer;
-    VkDeviceMemory memory;
-    VkBufferObject(VkGraphicsUnit& VkGPU, std::vector<T> const& content) : CPU(VkGPU) {
-        this->pVkGPU = &VkGPU;
-        VkDeviceSize bufferSize = sizeof(T) * content.size();
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(VkGPU, bufferSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(VkGPU.device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, content.data(), (size_t)bufferSize);
-        vkUnmapMemory(VkGPU.device, stagingBufferMemory);
-
-        createBuffer(VkGPU, bufferSize,
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            buffer, memory);
-
-        copyBuffer(stagingBuffer, buffer, bufferSize);
-
-        vkDestroyBuffer(VkGPU.device, stagingBuffer, nullptr);
-        vkFreeMemory(VkGPU.device, stagingBufferMemory, nullptr);
-    }
-    ~VkBufferObject() {
-        vkDestroyBuffer(pVkGPU->device, buffer, nullptr);
-        vkFreeMemory(pVkGPU->device, memory, nullptr);
-    }
-private:
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
-
-        VkBufferCopy copyRegion{};
-        copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-        CPU.endSingleTimeCommands(commandBuffer);
-    }
-};
-
-template<typename T>
-struct VkDataBuffer : memBuffer {
-    VkCPU CPU;
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-
-    std::vector<VkBuffer> buffer;
-    std::vector<VkDeviceMemory> memory;
-    VkDeviceSize bufferSize;
-
-    VkDataBuffer(VkGraphicsUnit& VkGPU, T& ubo) : CPU(VkGPU) {
-        this->pVkGPU = &VkGPU;
-        buffer.resize(MAX_FRAMES_IN_FLIGHT);
-        memory.resize(MAX_FRAMES_IN_FLIGHT);
-
-        bufferSize = sizeof(T);
-
-        createBuffer(VkGPU, bufferSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-            stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(VkGPU.device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, &ubo, (size_t)bufferSize);
-        vkUnmapMemory(VkGPU.device, stagingBufferMemory);
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            createBuffer(VkGPU, bufferSize,
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT| VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT  | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                buffer[i], memory[i]);
-
-            copyBuffer(stagingBuffer, buffer[i], bufferSize);
-            //vkMapMemory(pVkGPU->device, memory[i], 0, bufferSize, 0, &map[i]);
-        }
-    }
-    void update(uint32_t currentImage, camMatrix& camera) {
-        static auto startTime = std::chrono::high_resolution_clock::now();
-
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-        camera.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        //camera.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        
-
-        void* data;
-        vkMapMemory(pVkGPU->device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, &camera, (size_t)bufferSize);
-        vkUnmapMemory(pVkGPU->device, stagingBufferMemory);
-
-        copyBuffer(stagingBuffer, buffer[currentImage], bufferSize);
-        //memcpy(buffer[currentImage], &ubo, sizeof(ubo));
-    }
-    ~VkDataBuffer() {
-        vkDestroyBuffer(pVkGPU->device, stagingBuffer, nullptr);
-        vkFreeMemory(pVkGPU->device, stagingBufferMemory, nullptr);
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroyBuffer(pVkGPU->device, buffer[i], nullptr);
-            vkFreeMemory(pVkGPU->device, memory[i], nullptr);
-        } 
-    }
-private:
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
-
-        VkBufferCopy copyRegion{};
-        copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-        CPU.endSingleTimeCommands(commandBuffer);
-    }
-};
-
-template <typename T>
-struct VkBufferSet {
-    VkDescriptorPool Pool;
-    VkDescriptorSetLayout SetLayout;
-    std::vector<VkDescriptorSet> Sets;
-
-    VkBufferSet(VkGraphicsUnit& VkGPU, VkDataBuffer<T>& UBO, VkDescriptorType type, VkShaderStageFlagBits flag) {
-        this->pVkGPU = &VkGPU;
-        createDescriptorSetLayout(type, flag);
-        createDescriptorPool(type);
-        createDescriptorSets(UBO, type);
-    }
-    ~VkBufferSet() {
-        vkDestroyDescriptorPool(pVkGPU->device, Pool, nullptr);
-        vkDestroyDescriptorSetLayout(pVkGPU->device, SetLayout, nullptr);
-    }
-    
-private:
-    VkGraphicsUnit* pVkGPU;
-    void createDescriptorSetLayout(VkDescriptorType type, VkShaderStageFlagBits flag) {
-
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            bindings.push_back(VkUtils::bindSetLayout(i, type, flag));
-        }
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-
-        if (vkCreateDescriptorSetLayout(pVkGPU->device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
-    }
-    void createDescriptorPool(VkDescriptorType type) {
-        std::vector<VkDescriptorPoolSize> poolSizes;
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            poolSizes.push_back({ type, static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) });
-        }
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(pVkGPU->device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-    }
-    void createDescriptorSets(VkDataBuffer<T>& UBO, VkDescriptorType type) {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = Pool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
-
-        Sets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(pVkGPU->device, &allocInfo, Sets.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate descriptor sets!");
-        }
-
-        std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT);
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = UBO.buffer[i];
-            bufferInfo.offset = 0;
-            bufferInfo.range = UBO.bufferSize;
-
-            VkWriteDescriptorSet writeUBO = VkUtils::writeDescriptor(0, type, Sets[i]);
-            writeUBO.pBufferInfo = &bufferInfo;
-            descriptorWrites[i] = writeUBO;     
-        }
-        vkUpdateDescriptorSets(pVkGPU->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-    }
-};
-
-struct VkTextureSet {
-    VkDescriptorPool Pool;
-    VkDescriptorSetLayout SetLayout;
-    std::vector<VkDescriptorSet> Sets;
-    VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    VkShaderStageFlagBits flag = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    VkTextureSet(VkGraphicsUnit& VkGPU, VkTexture& texture) {
-        this->pVkGPU = &VkGPU;
-        createDescriptorSetLayout();
-        createDescriptorPool();
-        createDescriptorSets(texture);
-    }
-    ~VkTextureSet() {
-        vkDestroyDescriptorPool(pVkGPU->device, Pool, nullptr);
-        vkDestroyDescriptorSetLayout(pVkGPU->device, SetLayout, nullptr);
-    }
-
-private:
-    VkGraphicsUnit* pVkGPU;
-    void createDescriptorSetLayout() {
-
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            bindings.push_back(VkUtils::bindSetLayout(i, type, flag));
-        }
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-
-        if (vkCreateDescriptorSetLayout(pVkGPU->device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
-    }
-    void createDescriptorPool() {
-        std::vector<VkDescriptorPoolSize> poolSizes;
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            poolSizes.push_back({ type, static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) });
-        }
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(pVkGPU->device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-    }
-    void createDescriptorSets(VkTexture& texture) {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = Pool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
-
-        Sets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(pVkGPU->device, &allocInfo, Sets.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate descriptor sets!");
-        }
-
-        std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT);
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = texture.ImageView; // TODO: Generalize
-            imageInfo.sampler = texture.Sampler; // TODO: Generalize
-
-            VkWriteDescriptorSet writeSampler = VkUtils::writeDescriptor(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Sets[i]);
-            writeSampler.pImageInfo = &imageInfo;
-            descriptorWrites[i] = writeSampler;
-        }
-        vkUpdateDescriptorSets(pVkGPU->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-    }
-};
-
-
-
-
 
 struct VkGraphicsPipeline {
     VkBufferObject<Vertex> VBO;
@@ -920,11 +107,9 @@ struct VkGraphicsPipeline {
     
     UBO uniforms;
     VkDataBuffer<UBO> ubo;
-    VkBufferSet<UBO> uniformSet;
 
     SSBO shaderStorage;
     VkDataBuffer<SSBO> ssbo;
-    VkBufferSet<SSBO> storageSet;
     
     VkTexture planks; 
     VkTextureSet textureSet;
@@ -935,19 +120,19 @@ struct VkGraphicsPipeline {
     VkGraphicsPipeline(VkSwapChain& swapChain) : 
         VBO(swapChain, vertices), EBO(swapChain, indices),
 
-        ubo(swapChain, uniforms),
-        uniformSet(swapChain, ubo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+        ubo(swapChain, uniforms, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
 
         shaderStorage(swapChain.Extent.height,swapChain.Extent.width),
-        ssbo(swapChain, shaderStorage),
-        storageSet(swapChain, ssbo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT),
+        ssbo(swapChain, shaderStorage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT),
 
         planks(swapChain, "textures/planks.png"),
         textureSet(swapChain, planks) {
+
         pDevice = &swapChain.device;
         pExtent = &swapChain.Extent;
         pMsaaSamples = &swapChain.msaaSamples;
         pRenderPass = &swapChain.renderPass;
+
         createShaderPipeline<Vertex>();
     }
     ~VkGraphicsPipeline() {
@@ -964,21 +149,22 @@ private:
         std::default_random_engine rndEngine((unsigned)time(nullptr));
         std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
 
-        for (auto& particle : particles) {
-            float r = 0.25f * sqrt(rndDist(rndEngine));
-            float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
-            float x = r * cos(theta) * (*pExtent).height / (*pExtent).width;
-            float y = r * sin(theta);
-            float z = r * cos(theta) / sin(theta);
-            particle.position = glm::vec3(x, y, z);
-            particle.velocity = glm::normalize(glm::vec3(x, y, z)) * 0.00025f;
-            particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
-        }
-
+        std::for_each(std::execution::par, particles.begin(), particles.end(),
+            [&](Particle particle) {
+                float r = 0.25f * sqrt(rndDist(rndEngine));
+                float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
+                float x = r * cos(theta) * (*pExtent).height / (*pExtent).width;
+                float y = r * sin(theta);
+                float z = r * cos(theta) / sin(theta);
+                particle.position = glm::vec3(x, y, z);
+                particle.velocity = glm::normalize(glm::vec3(x, y, z)) * 0.00025f;
+                particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
+            }
+        );
     }
     template<typename T>
     void createShaderPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = { uniformSet.SetLayout, textureSet.SetLayout, storageSet.SetLayout };
+        std::vector<VkDescriptorSetLayout> layouts = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
         vkLoadSetLayout(layouts);
 
         VkShader vertShader(*pDevice, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);

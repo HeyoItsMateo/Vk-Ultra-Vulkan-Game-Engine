@@ -203,6 +203,31 @@ private:
     }
 };
 
+void userInput(GLFWwindow* window, int key, int scancode, int action, int mods)
+{// Sets Keyboard Commands
+    switch (action)
+    {// Checks for user keypress
+    case GLFW_PRESS:
+        switch (key)
+        {// Checks for keypress type and returns corresponding action
+        case GLFW_KEY_ESCAPE:
+            glfwSetWindowShouldClose(window, true);
+            break;
+        case GLFW_KEY_C:
+            //wireframe = !wireframe;
+            break;
+        case GLFW_KEY_V:
+            //vSync = !vSync;
+            //glfwSwapInterval(vSync);
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+
 struct VkUtils {
     static VkDescriptorSetLayoutBinding bindSetLayout(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags stageFlags) {
         VkDescriptorSetLayoutBinding layoutBinding{};

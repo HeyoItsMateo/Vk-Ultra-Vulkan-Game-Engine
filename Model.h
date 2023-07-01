@@ -50,9 +50,7 @@ struct VkTexture {
 
     VkCPU CPU;
 
-    VkTexture(VkGraphicsUnit& GPU, const char* filename) : CPU(GPU) {
-        pGPU = &GPU;
-
+    VkTexture(const char* filename) {
         stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
         VkDeviceSize imageSize = texWidth * texHeight * 4;
         mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
@@ -69,9 +67,9 @@ struct VkTexture {
             stagingBuffer, stagingBufferMemory);
 
         void* data;
-        vkMapMemory(GPU.device, stagingBufferMemory, 0, imageSize, 0, &data);
+        vkMapMemory(VkGPU::device, stagingBufferMemory, 0, imageSize, 0, &data);
         memcpy(data, pixels, static_cast<size_t>(imageSize));
-        vkUnmapMemory(GPU.device, stagingBufferMemory);
+        vkUnmapMemory(VkGPU::device, stagingBufferMemory);
 
         stbi_image_free(pixels);
 
@@ -84,23 +82,21 @@ struct VkTexture {
         copyBufferToImage(stagingBuffer);
         //transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
 
-        vkDestroyBuffer(GPU.device, stagingBuffer, nullptr);
-        vkFreeMemory(GPU.device, stagingBufferMemory, nullptr);
+        vkDestroyBuffer(VkGPU::device, stagingBuffer, nullptr);
+        vkFreeMemory(VkGPU::device, stagingBufferMemory, nullptr);
 
         generateMipmaps(VK_FORMAT_R8G8B8A8_SRGB);
         createImageView(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
         createTextureSampler();
     }
     ~VkTexture() {
-        vkDestroySampler(pGPU->device, Sampler, nullptr);
-        vkDestroyImageView(pGPU->device, ImageView, nullptr);
+        vkDestroySampler(VkGPU::device, Sampler, nullptr);
+        vkDestroyImageView(VkGPU::device, ImageView, nullptr);
 
-        vkDestroyImage(pGPU->device, Image, nullptr);
-        vkFreeMemory(pGPU->device, ImageMemory, nullptr);
+        vkDestroyImage(VkGPU::device, Image, nullptr);
+        vkFreeMemory(VkGPU::device, ImageMemory, nullptr);
     }
 private:
-    VkGraphicsUnit* pGPU;
-
     void createImage(VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties) {
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -117,23 +113,23 @@ private:
         imageInfo.samples = numSamples;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateImage(pGPU->device, &imageInfo, nullptr, &Image) != VK_SUCCESS) {
+        if (vkCreateImage(VkGPU::device, &imageInfo, nullptr, &Image) != VK_SUCCESS) {
             throw std::runtime_error("failed to create image!");
         }
 
         VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(pGPU->device, Image, &memRequirements);
+        vkGetImageMemoryRequirements(VkGPU::device, Image, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = pGPU->findMemoryType(memRequirements.memoryTypeBits, properties);
+        allocInfo.memoryTypeIndex = VkGPU::findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(pGPU->device, &allocInfo, nullptr, &ImageMemory) != VK_SUCCESS) {
+        if (vkAllocateMemory(VkGPU::device, &allocInfo, nullptr, &ImageMemory) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate image memory!");
         }
 
-        vkBindImageMemory(pGPU->device, Image, ImageMemory, 0);
+        vkBindImageMemory(VkGPU::device, Image, ImageMemory, 0);
     }
     void createImageView(VkFormat format, VkImageAspectFlags aspectFlags) {
         VkImageViewCreateInfo viewInfo{};
@@ -147,7 +143,7 @@ private:
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(pGPU->device, &viewInfo, nullptr, &ImageView) != VK_SUCCESS) {
+        if (vkCreateImageView(VkGPU::device, &viewInfo, nullptr, &ImageView) != VK_SUCCESS) {
             throw std::runtime_error("failed to create image view!");
         }
     }
@@ -225,7 +221,7 @@ private:
     void generateMipmaps(VkFormat imageFormat) {
         // Check if image format supports linear blitting
         VkFormatProperties formatProperties;
-        vkGetPhysicalDeviceFormatProperties(pGPU->physicalDevice, imageFormat, &formatProperties);
+        vkGetPhysicalDeviceFormatProperties(VkGPU::physicalDevice, imageFormat, &formatProperties);
 
         if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
             throw std::runtime_error("texture image format does not support linear blitting!");
@@ -312,7 +308,7 @@ private:
 
     void createTextureSampler() {
         VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(pGPU->physicalDevice, &properties);
+        vkGetPhysicalDeviceProperties(VkGPU::physicalDevice, &properties);
 
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -333,7 +329,7 @@ private:
         samplerInfo.maxLod = static_cast<float>(mipLevels);
         samplerInfo.mipLodBias = 0.0f; // Optional
 
-        if (vkCreateSampler(pGPU->device, &samplerInfo, nullptr, &Sampler) != VK_SUCCESS) {
+        if (vkCreateSampler(VkGPU::device, &samplerInfo, nullptr, &Sampler) != VK_SUCCESS) {
             throw std::runtime_error("failed to create texture sampler!");
         }
     }
@@ -345,23 +341,23 @@ private:
         bufferInfo.usage = usage;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(pGPU->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        if (vkCreateBuffer(VkGPU::device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to create buffer!");
         }
 
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(pGPU->device, buffer, &memRequirements);
+        vkGetBufferMemoryRequirements(VkGPU::device, buffer, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = pGPU->findMemoryType(memRequirements.memoryTypeBits, properties);
+        allocInfo.memoryTypeIndex = VkGPU::findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(pGPU->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+        if (vkAllocateMemory(VkGPU::device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate buffer memory!");
         }
 
-        vkBindBufferMemory(pGPU->device, buffer, bufferMemory, 0);
+        vkBindBufferMemory(VkGPU::device, buffer, bufferMemory, 0);
     }
 };
 
@@ -372,19 +368,17 @@ struct VkTextureSet {
     VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     VkShaderStageFlagBits flag = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkTextureSet(VkGraphicsUnit& VkGPU, VkTexture& texture) {
-        this->pVkGPU = &VkGPU;
+    VkTextureSet(VkTexture& texture) {
         createDescriptorSetLayout();
         createDescriptorPool();
         createDescriptorSets(texture);
     }
     ~VkTextureSet() {
-        vkDestroyDescriptorPool(pVkGPU->device, Pool, nullptr);
-        vkDestroyDescriptorSetLayout(pVkGPU->device, SetLayout, nullptr);
+        vkDestroyDescriptorPool(VkGPU::device, Pool, nullptr);
+        vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
     }
 
 private:
-    VkGraphicsUnit* pVkGPU;
     void createDescriptorSetLayout() {
 
         std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -397,7 +391,7 @@ private:
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         layoutInfo.pBindings = bindings.data();
 
-        if (vkCreateDescriptorSetLayout(pVkGPU->device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(VkGPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor set layout!");
         }
     }
@@ -412,7 +406,7 @@ private:
         poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
-        if (vkCreateDescriptorPool(pVkGPU->device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
+        if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
         }
     }
@@ -425,7 +419,7 @@ private:
         allocInfo.pSetLayouts = layouts.data();
 
         Sets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(pVkGPU->device, &allocInfo, Sets.data()) != VK_SUCCESS) {
+        if (vkAllocateDescriptorSets(VkGPU::device, &allocInfo, Sets.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
@@ -441,7 +435,7 @@ private:
             writeSampler.pImageInfo = &imageInfo;
             descriptorWrites[i] = writeSampler;
         }
-        vkUpdateDescriptorSets(pVkGPU->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        vkUpdateDescriptorSets(VkGPU::device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 };
 

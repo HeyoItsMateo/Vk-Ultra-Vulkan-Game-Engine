@@ -101,7 +101,57 @@ private:
     }
 };
 
+struct VkShader {
+    VkShaderModule shaderModule;
+    VkPipelineShaderStageCreateInfo stageInfo{};
+    VkShader(const std::string& filename, VkShaderStageFlagBits shaderStage) {
+        auto shaderCode = readFile(filename);
+        createShaderModule(shaderCode);
+
+        stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stageInfo.stage = shaderStage;
+        stageInfo.module = shaderModule;
+        stageInfo.pName = "main";
+    }
+    ~VkShader() {
+        vkDestroyShaderModule(VkGPU::device, shaderModule, nullptr);
+    }
+private:
+    void createShaderModule(const std::vector<char>& code) {
+        VkShaderModuleCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = code.size();
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+        if (vkCreateShaderModule(VkGPU::device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create shader module!");
+        }
+    }
+    // File Reader
+    static std::vector<char> readFile(const std::string& filename) {
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file!");
+        }
+
+        size_t fileSize = (size_t)file.tellg();
+        std::vector<char> buffer(fileSize);
+
+        file.seekg(0);
+        file.read(buffer.data(), fileSize);
+
+        file.close();
+
+        return buffer;
+    }
+};
+
+
 struct VkGraphicsPipeline {
+    VkPipeline mPipeline;
+    VkPipelineLayout mLayout;
+
     VkBufferObject<Vertex> VBO;
     VkBufferObject<uint16_t> EBO;
     
@@ -114,62 +164,31 @@ struct VkGraphicsPipeline {
     VkTexture planks; 
     VkTextureSet textureSet;
 
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkGraphicsPipeline(VkSwapChain& swapChain) :
+        VBO(vertices), EBO(indices),
 
-    VkGraphicsPipeline(VkSwapChain& swapChain) : 
-        VBO(swapChain, vertices), EBO(swapChain, indices),
-
-        ubo(swapChain, uniforms, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+        ubo(uniforms, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
 
         shaderStorage(swapChain.Extent.height,swapChain.Extent.width),
-        ssbo(swapChain, shaderStorage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT),
+        ssbo(shaderStorage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT),
 
-        planks(swapChain, "textures/planks.png"),
-        textureSet(swapChain, planks) {
-
-        pDevice = &swapChain.device;
-        pExtent = &swapChain.Extent;
-        pMsaaSamples = &swapChain.msaaSamples;
-        pRenderPass = &swapChain.renderPass;
-
+        planks("textures/planks.png"),
+        textureSet(planks) {
         createShaderPipeline<Vertex>();
     }
     ~VkGraphicsPipeline() {
-        vkDestroyPipeline(*pDevice, graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(*pDevice, pipelineLayout, nullptr);
+        vkDestroyPipeline(VkGPU::device, mPipeline, nullptr);
+        vkDestroyPipelineLayout(VkGPU::device, mLayout, nullptr);
     }
-protected:
-    VkDevice* pDevice;
-    VkExtent2D* pExtent;
-    VkSampleCountFlagBits* pMsaaSamples;
-    VkRenderPass* pRenderPass;
 private:
-    void particles(std::vector<Particle>& particles) {
-        std::default_random_engine rndEngine((unsigned)time(nullptr));
-        std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
-
-        std::for_each(std::execution::par, particles.begin(), particles.end(),
-            [&](Particle particle) {
-                float r = 0.25f * sqrt(rndDist(rndEngine));
-                float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
-                float x = r * cos(theta) * (*pExtent).height / (*pExtent).width;
-                float y = r * sin(theta);
-                float z = r * cos(theta) / sin(theta);
-                particle.position = glm::vec3(x, y, z);
-                particle.velocity = glm::normalize(glm::vec3(x, y, z)) * 0.00025f;
-                particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
-            }
-        );
-    }
     template<typename T>
     void createShaderPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
-        vkLoadSetLayout(layouts);
+        VkDescriptorSetLayout layouts[] = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
+        vkLoadSetLayout(layouts, sizeof(layouts)/sizeof(VkDescriptorSetLayout));
 
-        VkShader vertShader(*pDevice, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        VkShader fragShader(*pDevice, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-        VkShader compShader(*pDevice, "shaders/comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+        VkShader vertShader("shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        VkShader fragShader("shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkShader compShader("shaders/comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 
         VkPipelineShaderStageCreateInfo shaderStages[] = { vertShader.stageInfo, fragShader.stageInfo, compShader.stageInfo };
 
@@ -177,23 +196,23 @@ private:
         auto attributeDescriptions = T::vkCreateAttributes();
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = VkUtils::vkCreateVertexInput(bindingDescription, attributeDescriptions);
 
-        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly
+        { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-        VkPipelineViewportStateCreateInfo viewportState{};
-        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        VkPipelineViewportStateCreateInfo viewportState
+        { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
         viewportState.viewportCount = 1;
         viewportState.scissorCount = 1;
 
         VkPipelineRasterizationStateCreateInfo rasterizer = VkUtils::vkCreateRaster(VK_POLYGON_MODE_FILL);
 
-        VkPipelineMultisampleStateCreateInfo multisampling{};
-        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        VkPipelineMultisampleStateCreateInfo multisampling
+        { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
         multisampling.sampleShadingEnable = VK_TRUE; // enable sample shading in the pipeline
         multisampling.minSampleShading = .2f; // min fraction for sample shading; closer to one is smoother
-        multisampling.rasterizationSamples = *pMsaaSamples;
+        multisampling.rasterizationSamples = VkGPU::msaaSamples;
 
         VkPipelineDepthStencilStateCreateInfo depthStencil = VkUtils::vkCreateDepthStencil();
 
@@ -207,13 +226,13 @@ private:
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR
         };
-        VkPipelineDynamicStateCreateInfo dynamicState{};
-        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        VkPipelineDynamicStateCreateInfo dynamicState
+        { VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
 
-        VkGraphicsPipelineCreateInfo pipelineInfo{};
-        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        VkGraphicsPipelineCreateInfo pipelineInfo
+        { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.stageCount = 2;
         pipelineInfo.pStages = shaderStages;
         pipelineInfo.pVertexInputState = &vertexInputInfo;
@@ -223,71 +242,24 @@ private:
         pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = &dynamicState;
-        pipelineInfo.layout = pipelineLayout;
-        pipelineInfo.renderPass = *pRenderPass;
+        pipelineInfo.layout = mLayout;
+        pipelineInfo.renderPass = VkSwapChain::renderPass;
         pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
         pipelineInfo.pDepthStencilState = &depthStencil;
 
-        if (vkCreateGraphicsPipelines(*pDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(VkGPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &mPipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create graphics pipeline!");
         }
     }
-    void vkLoadSetLayout(std::vector<VkDescriptorSetLayout>& SetLayout) {
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = SetLayout.size();
-        pipelineLayoutInfo.pSetLayouts = SetLayout.data();
+    void vkLoadSetLayout(VkDescriptorSetLayout* SetLayout, uint32_t LayoutCount) {
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo
+        { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        pipelineLayoutInfo.setLayoutCount = LayoutCount;
+        pipelineLayoutInfo.pSetLayouts = SetLayout;
 
-        if (vkCreatePipelineLayout(*pDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(VkGPU::device, &pipelineLayoutInfo, nullptr, &mLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
         }
     }
-    struct VkShader {
-        VkShaderModule shaderModule;
-        VkPipelineShaderStageCreateInfo stageInfo{};
-        VkShader(VkDevice& device, const std::string& filename, VkShaderStageFlagBits shaderStage) {
-            pDevice = &device;
-            auto shaderCode = readFile(filename);
-            createShaderModule(device, shaderCode);
-
-            stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            stageInfo.stage = shaderStage;
-            stageInfo.module = shaderModule;
-            stageInfo.pName = "main";
-        }
-        ~VkShader() {
-            vkDestroyShaderModule(*pDevice, shaderModule, nullptr);
-        }
-    private:
-        VkDevice* pDevice;
-        void createShaderModule(VkDevice& device, const std::vector<char>& code) {
-            VkShaderModuleCreateInfo createInfo{};
-            createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-            createInfo.codeSize = code.size();
-            createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-            if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create shader module!");
-            }
-        }
-        // File Reader
-        static std::vector<char> readFile(const std::string& filename) {
-            std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-            if (!file.is_open()) {
-                throw std::runtime_error("failed to open file!");
-            }
-
-            size_t fileSize = (size_t)file.tellg();
-            std::vector<char> buffer(fileSize);
-
-            file.seekg(0);
-            file.read(buffer.data(), fileSize);
-
-            file.close();
-
-            return buffer;
-        }
-    };
 };

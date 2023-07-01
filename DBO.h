@@ -1,12 +1,10 @@
 #ifndef hDBO
 #define hDBO
 
-struct memBuffer {
-    VkCPU CPU;
+struct memBuffer : VkCPU {
     VkBuffer mBuffer, sBuffer;
     VkDeviceMemory mMemory, sMemory;
-    memBuffer(VkGraphicsUnit& GPU, VkDeviceSize size) : CPU(GPU) {
-        pGPU = &GPU;
+    memBuffer(VkDeviceSize size) {
         std::thread t1(&memBuffer::createBuffer, this, std::ref(mBuffer), size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
         std::thread t2(&memBuffer::createBuffer, this, std::ref(sBuffer), size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
         t1.join();
@@ -18,26 +16,25 @@ struct memBuffer {
         t2.join();
     }
     ~memBuffer() {
-        std::thread t1(vkDestroyBuffer, pGPU->device, mBuffer, nullptr);
-        std::thread t2(vkDestroyBuffer, pGPU->device, sBuffer, nullptr);
+        std::thread t1(vkDestroyBuffer, VkGPU::device, mBuffer, nullptr);
+        std::thread t2(vkDestroyBuffer, VkGPU::device, sBuffer, nullptr);
         t1.join();
         t2.join();
         //vkDestroyBuffer(pGPU->device, sBuffer, nullptr);
-        t1 = std::thread(vkFreeMemory, pGPU->device, mMemory, nullptr);
-        t2 = std::thread(vkFreeMemory, pGPU->device, sMemory, nullptr);
+        t1 = std::thread(vkFreeMemory, VkGPU::device, mMemory, nullptr);
+        t2 = std::thread(vkFreeMemory, VkGPU::device, sMemory, nullptr);
         t1.join();
         t2.join();
     }
 protected:
-    VkGraphicsUnit* pGPU;
     void copyBuffer(VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkBufferCopy copyRegion{};
         copyRegion.size = size;
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-        CPU.endSingleTimeCommands(commandBuffer);
+        endSingleTimeCommands(commandBuffer);
     }
 private:
     void createBuffer(VkBuffer& buffer, VkDeviceSize size, VkBufferUsageFlags usage) {
@@ -46,48 +43,47 @@ private:
         bufferInfo.usage = usage;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(pGPU->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        if (vkCreateBuffer(VkGPU::device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to create buffer!");
         }
     }
     void allocateMemory(VkBuffer& buffer, VkDeviceMemory& memory, VkMemoryPropertyFlags properties) {
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(pGPU->device, buffer, &memRequirements);
+        vkGetBufferMemoryRequirements(VkGPU::device, buffer, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = pGPU->findMemoryType(memRequirements.memoryTypeBits, properties);
+        allocInfo.memoryTypeIndex = VkGPU::findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(pGPU->device, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+        if (vkAllocateMemory(VkGPU::device, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate buffer memory!");
         }
 
-        vkBindBufferMemory(pGPU->device, buffer, memory, 0);
+        vkBindBufferMemory(VkGPU::device, buffer, memory, 0);
     }
 };
 
 template<typename T>
 struct VkBufferObject : memBuffer {
-    VkBufferObject(VkGraphicsUnit& GPU, std::vector<T> const& content)
-        : memBuffer(GPU, sizeof(T)*content.size())
+    VkBufferObject(std::vector<T> const& content)
+        : memBuffer(sizeof(T)*content.size())
     {
         VkDeviceSize bufferSize = sizeof(T) * content.size();
 
         void* data;
-        vkMapMemory(GPU.device, sMemory, 0, bufferSize, 0, &data);
+        vkMapMemory(VkGPU::device, sMemory, 0, bufferSize, 0, &data);
         memcpy(data, content.data(), (size_t)bufferSize);
         
         copyBuffer(sBuffer, mBuffer, bufferSize);
     }
     ~VkBufferObject() {
-        vkUnmapMemory(pGPU->device, sMemory);
+        vkUnmapMemory(VkGPU::device, sMemory);
     }
 };
 
 template<typename T>
-struct VkDataBuffer {
-    VkCPU CPU;
+struct VkDataBuffer : VkCPU {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
 
@@ -100,27 +96,26 @@ struct VkDataBuffer {
     VkDescriptorSetLayout SetLayout;
     std::vector<VkDescriptorSet> Sets;
 
-    VkDataBuffer(VkGraphicsUnit& GPU, T& ubo, VkDescriptorType type, VkShaderStageFlagBits flag) : CPU(GPU) {
-        this->pGPU = &GPU;
-        createDataBuffer(GPU, ubo);
+    VkDataBuffer(T& ubo, VkDescriptorType type, VkShaderStageFlagBits flag) {
+        createDataBuffer(ubo);
 
         createDescriptorSetLayout(type, flag);
         createDescriptorPool(type);
         createDescriptorSets(type);
     }
     ~VkDataBuffer() {
-        vkUnmapMemory(pGPU->device, stagingBufferMemory);
-        vkDestroyBuffer(pGPU->device, stagingBuffer, nullptr);
-        vkFreeMemory(pGPU->device, stagingBufferMemory, nullptr);
+        vkUnmapMemory(VkGPU::device, stagingBufferMemory);
+        vkDestroyBuffer(VkGPU::device, stagingBuffer, nullptr);
+        vkFreeMemory(VkGPU::device, stagingBufferMemory, nullptr);
 
         std::for_each(std::execution::par, Buffer.begin(), Buffer.end(), 
-            [&](VkBuffer buffer) { vkDestroyBuffer(pGPU->device, buffer, nullptr); });
+            [&](VkBuffer buffer) { vkDestroyBuffer(VkGPU::device, buffer, nullptr); });
 
         std::for_each(std::execution::par, Memory.begin(), Memory.end(),
-            [&](VkDeviceMemory memory) { vkFreeMemory(pGPU->device, memory, nullptr); });
+            [&](VkDeviceMemory memory) { vkFreeMemory(VkGPU::device, memory, nullptr); });
 
-        vkDestroyDescriptorPool(pGPU->device, Pool, nullptr);
-        vkDestroyDescriptorSetLayout(pGPU->device, SetLayout, nullptr);
+        vkDestroyDescriptorPool(VkGPU::device, Pool, nullptr);
+        vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
     }
 
     void update(uint32_t currentImage, void* contents) {
@@ -128,11 +123,9 @@ struct VkDataBuffer {
 
         copyBuffer(stagingBuffer, Buffer[currentImage], bufferSize);
     }
-protected:
-    VkGraphicsUnit* pGPU;
 private:
     void* data;
-    void createDataBuffer(VkGraphicsUnit& GPU, T& ubo) {
+    void createDataBuffer(T& ubo) {
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -142,7 +135,7 @@ private:
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        vkMapMemory(GPU.device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        vkMapMemory(VkGPU::device, stagingBufferMemory, 0, bufferSize, 0, &data);
         memcpy(data, &ubo, (size_t)bufferSize);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -160,32 +153,32 @@ private:
         bufferInfo.usage = usage;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(pGPU->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        if (vkCreateBuffer(VkGPU::device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to create buffer!");
         }
 
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(pGPU->device, buffer, &memRequirements);
+        vkGetBufferMemoryRequirements(VkGPU::device, buffer, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = pGPU->findMemoryType(memRequirements.memoryTypeBits, properties);
+        allocInfo.memoryTypeIndex = VkGPU::findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(pGPU->device, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+        if (vkAllocateMemory(VkGPU::device, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate buffer memory!");
         }
 
-        vkBindBufferMemory(pGPU->device, buffer, memory, 0);
+        vkBindBufferMemory(VkGPU::device, buffer, memory, 0);
     }
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkBufferCopy copyRegion{};
         copyRegion.size = size;
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-        CPU.endSingleTimeCommands(commandBuffer);
+        endSingleTimeCommands(commandBuffer);
     }
 
     void createDescriptorSetLayout(VkDescriptorType type, VkShaderStageFlagBits flag) {
@@ -200,7 +193,7 @@ private:
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         layoutInfo.pBindings = bindings.data();
 
-        if (vkCreateDescriptorSetLayout(pGPU->device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(VkGPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor set layout!");
         }
     }
@@ -215,7 +208,7 @@ private:
         poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
-        if (vkCreateDescriptorPool(pGPU->device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
+        if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
         }
     }
@@ -228,7 +221,7 @@ private:
         allocInfo.pSetLayouts = layouts.data();
 
         Sets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(pGPU->device, &allocInfo, Sets.data()) != VK_SUCCESS) {
+        if (vkAllocateDescriptorSets(VkGPU::device, &allocInfo, Sets.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
@@ -244,7 +237,7 @@ private:
             writeUBO.pBufferInfo = &bufferInfo;
             descriptorWrites[i] = writeUBO;
         }
-        vkUpdateDescriptorSets(pGPU->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        vkUpdateDescriptorSets(VkGPU::device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 };
 

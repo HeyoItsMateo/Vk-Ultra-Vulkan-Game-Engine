@@ -44,6 +44,12 @@
     <None Include="shaders\comp.spv">
       <Filter>Resource Files\shaders</Filter>
     </None>
+    <None Include="shaders\test.vert">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="shaders\test.frag">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="VulkanEngine.h">
@@ -68,6 +74,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DBO.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="compShaderTest.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

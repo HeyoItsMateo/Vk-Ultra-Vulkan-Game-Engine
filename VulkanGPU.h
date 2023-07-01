@@ -9,27 +9,27 @@ const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_N
 
 const int MAX_FRAMES_IN_FLIGHT = 1;
 
-struct VkGraphicsUnit : VulkanAPI {
-    VkDevice device;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+struct VkGPU : VulkanAPI {
+    inline static VkDevice device;
+    inline static VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    inline static VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
     VkSurfaceCapabilitiesKHR capabilities;
     std::vector<VkSurfaceFormatKHR> formats;
     std::vector<VkPresentModeKHR> presentModes;
 
-    std::optional<uint32_t> graphicsFamily;
+    inline static std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
 
-    VkQueue graphicsQueue;
-    VkQueue computeQueue;
-    VkQueue presentQueue;
+    inline static VkQueue graphicsQueue;
+    inline static VkQueue computeQueue;
+    inline static VkQueue presentQueue;
 
-    VkGraphicsUnit(VkWindow& window) : VulkanAPI(window) {
+    VkGPU(VkWindow& window) : VulkanAPI(window) {
         pickPhysicalDevice();
         createLogicalDevice();
     }
-    ~VkGraphicsUnit() {
+    ~VkGPU() {
         vkDestroyDevice(device, nullptr);
     }
     
@@ -52,7 +52,7 @@ struct VkGraphicsUnit : VulkanAPI {
             vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, presentModes.data());
         }
     }
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
         VkPhysicalDeviceMemoryProperties memProperties;
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
 
@@ -215,14 +215,12 @@ private:
 struct VkCPU {
     VkCommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
-    VkCPU(VkGraphicsUnit& VkGPU) {
-        this->pVkGPU = &VkGPU;
-       
-        createCommandPool(VkGPU);
-        createCommandBuffers(VkGPU);
+    VkCPU() {
+        createCommandPool();
+        createCommandBuffers();
     }
     ~VkCPU() {
-        vkDestroyCommandPool(pVkGPU->device, commandPool, nullptr);
+        vkDestroyCommandPool(VkGPU::device, commandPool, nullptr);
     }
     VkCommandBuffer beginSingleTimeCommands() {
         VkCommandBufferAllocateInfo allocInfo{};
@@ -232,7 +230,7 @@ struct VkCPU {
         allocInfo.commandBufferCount = 1;
 
         VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers(pVkGPU->device, &allocInfo, &commandBuffer);
+        vkAllocateCommandBuffers(VkGPU::device, &allocInfo, &commandBuffer);
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -250,33 +248,32 @@ struct VkCPU {
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
 
-        vkQueueSubmit(pVkGPU->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(pVkGPU->graphicsQueue);
+        vkQueueSubmit(VkGPU::graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(VkGPU::graphicsQueue);
 
-        vkFreeCommandBuffers(pVkGPU->device, commandPool, 1, &commandBuffer);
+        vkFreeCommandBuffers(VkGPU::device, commandPool, 1, &commandBuffer);
     }
 private:
-    VkGraphicsUnit* pVkGPU;
-    void createCommandPool(VkGraphicsUnit& VkGPU) {
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    void createCommandPool() {
+        VkCommandPoolCreateInfo poolInfo
+        { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = VkGPU.graphicsFamily.value();
+        poolInfo.queueFamilyIndex = VkGPU::graphicsFamily.value();
 
-        if (vkCreateCommandPool(VkGPU.device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        if (vkCreateCommandPool(VkGPU::device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create graphics command pool!");
         }
     }
-    void createCommandBuffers(VkGraphicsUnit& VkGPU) {
+    void createCommandBuffers() {
         commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        VkCommandBufferAllocateInfo allocInfo
+        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
         allocInfo.commandPool = commandPool;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-        if (vkAllocateCommandBuffers(VkGPU.device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+        if (vkAllocateCommandBuffers(VkGPU::device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate command buffers!");
         }
     }
@@ -307,9 +304,11 @@ struct VkDepthImage {
     VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 };
 
-struct VkSwapChain : VkGraphicsUnit {
-    VkSwapchainKHR swapChainKHR;
-    VkExtent2D Extent;
+struct VkSwapChain : VkGPU {
+    inline static VkSwapchainKHR swapChainKHR;
+    inline static VkExtent2D Extent;
+    inline static VkRenderPass renderPass;
+
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
     std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -318,8 +317,8 @@ struct VkSwapChain : VkGraphicsUnit {
     VkColorImage color;
     VkDepthImage depth;
 
-    VkRenderPass renderPass;
-    VkSwapChain(VkWindow& window) : VkGraphicsUnit(window) {
+    
+    VkSwapChain(VkWindow& window) : VkGPU(window) {
         createSwapChain();
         createImageViews();
 
@@ -348,7 +347,7 @@ struct VkSwapChain : VkGraphicsUnit {
         querySwapChainSupport(physicalDevice);
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(presentModes);
-        Extent = chooseSwapExtent(capabilities);
+        chooseSwapExtent(capabilities);
 
         uint32_t imageCount = capabilities.minImageCount + 1;
         if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
@@ -481,9 +480,9 @@ private:
 
         return VK_PRESENT_MODE_FIFO_KHR;
     }
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+    void chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
         if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
-            return capabilities.currentExtent;
+            Extent = capabilities.currentExtent;
         }
         else {
             int width, height;
@@ -494,10 +493,8 @@ private:
                 static_cast<uint32_t>(height)
             };
 
-            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-
-            return actualExtent;
+            Extent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            Extent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
         }
     }
 

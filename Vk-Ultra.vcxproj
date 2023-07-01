@@ -152,10 +152,13 @@
     <None Include="shaders\frag.spv" />
     <None Include="shaders\shader.frag" />
     <None Include="shaders\shader.vert" />
+    <None Include="shaders\test.frag" />
+    <None Include="shaders\test.vert" />
     <None Include="shaders\vert.spv" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="compShaderTest.h" />
     <ClInclude Include="DBO.h" />
     <ClInclude Include="VkDescriptors.h" />
     <ClInclude Include="Model.h" />

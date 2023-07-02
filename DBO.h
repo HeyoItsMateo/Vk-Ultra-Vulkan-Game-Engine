@@ -161,7 +161,7 @@ struct VkDataBuffer : VkCPU, VkDescriptor {
     }
 private:
     void* data;
-    void createDataBuffer(T& ubo) {
+    void constexpr createDataBuffer(T& ubo) {
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -182,7 +182,7 @@ private:
             copyBuffer(stagingBuffer, Buffer[i], bufferSize);
         }
     }
-    void createBuffer(VkBuffer& buffer, VkDeviceMemory& memory, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
+    void constexpr createBuffer(VkBuffer& buffer, VkDeviceMemory& memory, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = size;

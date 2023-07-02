@@ -157,6 +157,7 @@
     <None Include="shaders\vert.spv" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="basicFunctions.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="compShaderTest.h" />
     <ClInclude Include="DBO.h" />

@@ -103,12 +103,12 @@ private:
 
 struct VkShader {
     VkShaderModule shaderModule;
-    VkPipelineShaderStageCreateInfo stageInfo{};
+    VkPipelineShaderStageCreateInfo stageInfo
+    { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
     VkShader(const std::string& filename, VkShaderStageFlagBits shaderStage) {
         auto shaderCode = readFile(filename);
         createShaderModule(shaderCode);
 
-        stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         stageInfo.stage = shaderStage;
         stageInfo.module = shaderModule;
         stageInfo.pName = "main";
@@ -118,8 +118,8 @@ struct VkShader {
     }
 private:
     void createShaderModule(const std::vector<char>& code) {
-        VkShaderModuleCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        VkShaderModuleCreateInfo createInfo
+        { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
         createInfo.codeSize = code.size();
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
@@ -147,6 +147,16 @@ private:
     }
 };
 
+// TODO: Find how to apply members from all elements of a pointer to an array to a different array
+struct VkPipelineStages {
+    VkPipelineShaderStageCreateInfo* mStages;
+    VkPipelineStages(VkShader* shaderStages) {
+        mStages = &shaderStages->stageInfo;
+    }
+    ~VkPipelineStages() {
+
+    }
+};
 
 struct VkGraphicsPipeline {
     VkPipeline mPipeline;
@@ -157,11 +167,11 @@ struct VkGraphicsPipeline {
 
     std::vector<VkDescriptorSet> Sets;
 
-    VkGraphicsPipeline(std::vector<VkDescriptorSetLayout>& layouts) :
+    VkGraphicsPipeline(std::vector<VkDescriptorSetLayout>& layouts, std::vector<VkPipelineShaderStageCreateInfo>& shaderStages) :
         VBO(vertices), EBO(indices) 
     {
         vkLoadSetLayout(layouts);
-        createShaderPipeline<Vertex>();
+        createShaderPipeline<Vertex>(shaderStages);
     }
     ~VkGraphicsPipeline() {
         vkDestroyPipeline(VkGPU::device, mPipeline, nullptr);
@@ -179,14 +189,7 @@ struct VkGraphicsPipeline {
     }
 private:
     template<typename T>
-    void createShaderPipeline() {
-
-        VkShader vertShader("shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        VkShader fragShader("shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-        VkShader compShader("shaders/comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
-        std::vector<VkPipelineShaderStageCreateInfo> shaderStages = { vertShader.stageInfo, fragShader.stageInfo };
-
-
+    void createShaderPipeline(std::vector<VkPipelineShaderStageCreateInfo>& shaderStages) {
         //auto bindingDescription = T::vkCreateBindings();
         //auto attributeDescriptions = T::vkCreateAttributes();
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = T::vkCreateVertexInput();
@@ -230,6 +233,7 @@ private:
         { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
         pipelineInfo.pStages = shaderStages.data();
+        //pipelineInfo.pStages = pipeStages;
         pipelineInfo.pVertexInputState = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState = &inputAssembly;
         pipelineInfo.pViewportState = &viewportState;

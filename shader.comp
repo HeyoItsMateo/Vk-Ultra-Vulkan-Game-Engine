@@ -1,9 +1,16 @@
-#version 450
+#version 460
+#extension GL_ARB_compute_shader : enable
+#extension GL_ARB_shader_storage_buffer_object : enable
 
 struct Particle {
 	vec3 position;
-	vec3 velocity;
+	vec3 objVel;
     vec4 color;
+};
+
+struct Obj {
+    mat4 objMtc;
+    vec3 objVel;
 };
 
 struct camera{
@@ -15,39 +22,80 @@ struct modelMatrix {
     mat4 model;
 };
 
-
 layout(binding = 0) uniform UniformBufferObject {
     modelMatrix model;
     camera cam;
     float dt;
 } ubo;
 
-
-layout(std140  binding = 1) readonly buffer ParticleSSBOIn {
-   Particle particlesIn[ ];
+layout(std140  binding = 1) readonly buffer SSBO_in {
+   Particle inSSBO[ ];
 };
-layout(std140, binding = 2) buffer ParticleSSBOout {
-   Particle particlesOut[ ];
+layout(std140, binding = 2) buffer SSBO_out {
+   Particle outSSBO[ ];
 };
 
-
+// Workgroup Invocation Layout
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
+
+// Organization and Indexing
+uvec3 nWG = gl_NumWorkGroups;
+uvec3 sWG = gl_WorkGroupSize;
+uint i = gl_WorkGroupID.x + (nWG.x * gl_WorkGroupID.y) + (nWG.x * nWG.y * gl_WorkGroupID.z);
+uint j = gl_LocalInvocationID.x + (sWG.x * gl_LocalInvocationID.y) + (sWG.x * sWG.y *gl_LocalInvocationID.z);
+    
+// Globals
+const float c = 2.0f;
+const float e = 2.7182818284;
+
+float radius = 0.001f;
+
+
+// Calculates acceleration towards a position
+vec3 Gravity(vec3 p1, vec3 p2, float m1, float m2){
+    vec3 rN = normalize(p2 - p1);
+    float dist2 = distance(p2, p1);
+    dist2 *= dist2;
+    return rN * ((c*c*m1 * m1 * m2) / (4 + c*c*m1*m1*dist2));
+}
+
 void main() 
-{
-    uint index = gl_GlobalInvocationID.x;  
+{// Kinematic Motion of the Elements of the System
+    vec3 Acceleration;
+    if (i != j)
+    {// Particle Interaction Calculations
+        // Interacting Particle Properties
+        float m0 = objMtc[i][0][0];
+        float m1 = objMtc[j][0][0];
+        vec3 p0 = objMtc[i][3].xyz;
+        vec3 p1 = objMtc[j][3].xyz;
+        
+        // Velocity Calculation
+        objVel[i] += Gravity(p0, p1, m0, m1) * dt;
 
-    Particle particleIn = particlesIn[index];
+        if (length(objVel[i]) > c)
+        {// Sets the Velocity Maximum to the Speed of Light
+            normalize(objVel[i]);
+            objVel[i] *= c;
+        }
+        if (distance(p0, p1) <= (objMtc[i][0][0] + objMtc[j][0][0]))
+        {
+            vec3 rN0 = - normalize(p1 - p0);
+            vec3 rN =  - normalize(p0 - p1);
+            vec3 v = (objVel[i].xyz + objVel[j].xyz)/2;
+            vec3 deflect = rN - 2 * dot(rN, objVel[i].xyz) * objVel[i].xyz;
+            objVel[i] = v;
+            objVel[j] = v;
+        }
 
-    particlesOut[index].position = particleIn.position + particleIn.velocity.xyz;
-    particlesOut[index].velocity = particleIn.velocity;
 
-    // Flip movement at window border
-    if ((particlesOut[index].position.x <= -1.0) || (particlesOut[index].position.x >= 1.0)) {
-        particlesOut[index].velocity.x = -particlesOut[index].velocity.x;
-    }
-    if ((particlesOut[index].position.y <= -1.0) || (particlesOut[index].position.y >= 1.0)) {
-        particlesOut[index].velocity.y = -particlesOut[index].velocity.y;
-    }
-
+        /*if ( distance(p0, p1) <= radius)
+        {// Collision Detection and Basic Adjustment
+            vec3 rN = normalize(p1 - p0);
+            Velocities[i].xyz *= rN;
+        }*/
+        // Update Position
+        objMtc[i][3].xyz += objVel[i] * dt;
+    }   
 }

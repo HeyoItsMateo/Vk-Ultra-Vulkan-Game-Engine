@@ -79,5 +79,8 @@
     <ClInclude Include="compShaderTest.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="basicFunctions.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

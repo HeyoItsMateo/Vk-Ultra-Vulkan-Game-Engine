@@ -308,6 +308,7 @@ struct VkSwapChain : VkGPU {
     inline static VkSwapchainKHR swapChainKHR;
     inline static VkExtent2D Extent;
     inline static VkRenderPass renderPass;
+    inline static uint32_t currentFrame = 0;
 
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;

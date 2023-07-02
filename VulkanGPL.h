@@ -154,47 +154,42 @@ struct VkGraphicsPipeline {
 
     VkBufferObject<Vertex> VBO;
     VkBufferObject<uint16_t> EBO;
-    
-    UBO uniforms;
-    VkDataBuffer<UBO> ubo;
 
-    SSBO shaderStorage;
-    VkDataBuffer<SSBO> ssbo;
-    
-    VkTexture planks; 
-    VkTextureSet textureSet;
+    std::vector<VkDescriptorSet> Sets;
 
-    VkGraphicsPipeline(VkSwapChain& swapChain) :
-        VBO(vertices), EBO(indices),
-
-        ubo(uniforms, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
-
-        shaderStorage(swapChain.Extent.height,swapChain.Extent.width),
-        ssbo(shaderStorage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT),
-
-        planks("textures/planks.png"),
-        textureSet(planks) {
+    VkGraphicsPipeline(std::vector<VkDescriptorSetLayout>& layouts) :
+        VBO(vertices), EBO(indices) 
+    {
+        vkLoadSetLayout(layouts);
         createShaderPipeline<Vertex>();
     }
     ~VkGraphicsPipeline() {
         vkDestroyPipeline(VkGPU::device, mPipeline, nullptr);
         vkDestroyPipelineLayout(VkGPU::device, mLayout, nullptr);
     }
+    void bind(VkCommandBuffer commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
+        // Pipeline binding
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mLayout, 0, setCount, sets, 0, nullptr);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline);
+
+        // Vertex binding (objects to draw)
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &VBO.mBuffer, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, EBO.mBuffer, 0, VK_INDEX_TYPE_UINT16);
+    }
 private:
     template<typename T>
     void createShaderPipeline() {
-        VkDescriptorSetLayout layouts[] = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
-        vkLoadSetLayout(layouts, sizeof(layouts)/sizeof(VkDescriptorSetLayout));
 
         VkShader vertShader("shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
         VkShader fragShader("shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
         VkShader compShader("shaders/comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStages = { vertShader.stageInfo, fragShader.stageInfo };
 
-        VkPipelineShaderStageCreateInfo shaderStages[] = { vertShader.stageInfo, fragShader.stageInfo, compShader.stageInfo };
 
-        auto bindingDescription = T::vkCreateBindings();
-        auto attributeDescriptions = T::vkCreateAttributes();
-        VkPipelineVertexInputStateCreateInfo vertexInputInfo = VkUtils::vkCreateVertexInput(bindingDescription, attributeDescriptions);
+        //auto bindingDescription = T::vkCreateBindings();
+        //auto attributeDescriptions = T::vkCreateAttributes();
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo = T::vkCreateVertexInput();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly
         { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
@@ -233,8 +228,8 @@ private:
 
         VkGraphicsPipelineCreateInfo pipelineInfo
         { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
-        pipelineInfo.stageCount = 2;
-        pipelineInfo.pStages = shaderStages;
+        pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+        pipelineInfo.pStages = shaderStages.data();
         pipelineInfo.pVertexInputState = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState = &inputAssembly;
         pipelineInfo.pViewportState = &viewportState;
@@ -252,11 +247,14 @@ private:
             throw std::runtime_error("failed to create graphics pipeline!");
         }
     }
-    void vkLoadSetLayout(VkDescriptorSetLayout* SetLayout, uint32_t LayoutCount) {
+    void vkLoadShaders(std::vector<VkShader>& shaderStages) {
+
+    }
+    void vkLoadSetLayout(std::vector<VkDescriptorSetLayout>& SetLayout) {
         VkPipelineLayoutCreateInfo pipelineLayoutInfo
         { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-        pipelineLayoutInfo.setLayoutCount = LayoutCount;
-        pipelineLayoutInfo.pSetLayouts = SetLayout;
+        pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(SetLayout.size());
+        pipelineLayoutInfo.pSetLayouts = SetLayout.data();
 
         if (vkCreatePipelineLayout(VkGPU::device, &pipelineLayoutInfo, nullptr, &mLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");

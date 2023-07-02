@@ -37,23 +37,21 @@ struct VkSyncObjects {
 struct VkGraphicsEngine : VkSwapChain, VkSyncObjects, VkCPU {
     VkGraphicsEngine(VkWindow& pWindow) : VkSwapChain(pWindow) {
     }
-    void run(VkGraphicsPipeline& pipeline) {
+    void run(VkGraphicsPipeline& pipeline, UBO& uniforms, VkDataBuffer<UBO>& ubo, uint32_t setCount, VkDescriptorSet* sets) {
+        
+
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
             std::jthread t1(glfwSetKeyCallback, window, userInput);
 
-            pipeline.uniforms.update(window, Extent);
-            pipeline.ubo.update(currentFrame, &pipeline.uniforms);
-            
-            
-            drawFrame(pipeline);
+            uniforms.update(window, Extent);
+            ubo.update(currentFrame, &uniforms);
+            drawFrame(pipeline, setCount, sets);
         }
         vkDeviceWaitIdle(device);
     }
 private:
-    uint32_t currentFrame = 0;
-
-    void drawFrame(VkGraphicsPipeline& pipeline) {
+    void drawFrame(VkGraphicsPipeline& pipeline, uint32_t setCount, VkDescriptorSet* sets) {
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
@@ -84,8 +82,9 @@ private:
         }
 
         vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
         
-        vkRenderImage(pipeline, imageIndex);
+        vkRenderImage(pipeline, imageIndex, setCount, sets);
 
         //VkSwapchainKHR swapChains[] = { swapChain };
         VkPresentInfoKHR presentInfo{};
@@ -108,7 +107,7 @@ private:
 
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
-    void vkRenderImage(VkGraphicsPipeline& pipeline, uint32_t imageIndex) { //TODO: rename to vkRenderImages()
+    void vkRenderImage(VkGraphicsPipeline& pipeline, uint32_t imageIndex, uint32_t setCount, VkDescriptorSet* sets) { //TODO: rename to vkRenderImages()
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -123,15 +122,8 @@ private:
         scissor.extent = Extent;
         vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
 
-        // Pipeline binding
-        VkDescriptorSet sets[] = { pipeline.ubo.Sets[currentFrame], pipeline.textureSet.Sets[currentFrame], pipeline.ssbo.Sets[currentFrame] };
-        vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mLayout, 0, 3, sets, 0, nullptr);
-        vkCmdBindPipeline(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mPipeline);
         
-        // Vertex binding (objects to draw)
-        VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, &pipeline.VBO.mBuffer, offsets);
-        vkCmdBindIndexBuffer(commandBuffers[currentFrame], pipeline.EBO.mBuffer, 0, VK_INDEX_TYPE_UINT16);
+        pipeline.bind(commandBuffers[currentFrame], setCount, sets);
 
         // Draw Command
         vkCmdDrawIndexed(commandBuffers[currentFrame], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);

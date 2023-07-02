@@ -82,8 +82,46 @@ struct VkBufferObject : memBuffer {
     }
 };
 
+struct VkDescriptor {
+    VkDescriptorSetLayout SetLayout;
+    std::vector<VkDescriptorSet> Sets;
+protected:
+    VkDescriptorPool Pool;
+    void createDescriptorSetLayout(VkDescriptorType type, VkShaderStageFlagBits flag) {
+
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            bindings.push_back(VkUtils::bindSetLayout(i, type, flag));
+        }
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(VkGPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor set layout!");
+        }
+    }
+    void createDescriptorPool(VkDescriptorType type) {
+        std::vector<VkDescriptorPoolSize> poolSizes;
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            poolSizes.push_back({ type, static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) });
+        }
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
+        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+        if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor pool!");
+        }
+    }
+};
+
 template<typename T>
-struct VkDataBuffer : VkCPU {
+struct VkDataBuffer : VkCPU, VkDescriptor {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
 
@@ -92,9 +130,7 @@ struct VkDataBuffer : VkCPU {
 
     VkDeviceSize bufferSize;
 
-    VkDescriptorPool Pool;
-    VkDescriptorSetLayout SetLayout;
-    std::vector<VkDescriptorSet> Sets;
+
 
     VkDataBuffer(T& ubo, VkDescriptorType type, VkShaderStageFlagBits flag) {
         createDataBuffer(ubo);
@@ -181,37 +217,6 @@ private:
         endSingleTimeCommands(commandBuffer);
     }
 
-    void createDescriptorSetLayout(VkDescriptorType type, VkShaderStageFlagBits flag) {
-
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            bindings.push_back(VkUtils::bindSetLayout(i, type, flag));
-        }
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-
-        if (vkCreateDescriptorSetLayout(VkGPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
-    }
-    void createDescriptorPool(VkDescriptorType type) {
-        std::vector<VkDescriptorPoolSize> poolSizes;
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            poolSizes.push_back({ type, static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) });
-        }
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-    }
     void createDescriptorSets(VkDescriptorType type) {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -236,6 +241,50 @@ private:
             VkWriteDescriptorSet writeUBO = VkUtils::writeDescriptor(0, type, Sets[i]);
             writeUBO.pBufferInfo = &bufferInfo;
             descriptorWrites[i] = writeUBO;
+        }
+        vkUpdateDescriptorSets(VkGPU::device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+    }
+};
+
+struct VkTextureSet : VkDescriptor {
+    VkDescriptorType mType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    VkShaderStageFlagBits mFlag = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkTextureSet(VkTexture& texture) {
+        createDescriptorSetLayout(mType, mFlag);
+        createDescriptorPool(mType);
+        createDescriptorSets(texture);
+    }
+    ~VkTextureSet() {
+        vkDestroyDescriptorPool(VkGPU::device, Pool, nullptr);
+        vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
+    }
+
+private:
+    void createDescriptorSets(VkTexture& texture) {
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = Pool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        allocInfo.pSetLayouts = layouts.data();
+
+        Sets.resize(MAX_FRAMES_IN_FLIGHT);
+        if (vkAllocateDescriptorSets(VkGPU::device, &allocInfo, Sets.data()) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate descriptor sets!");
+        }
+
+        std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT);
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
+            VkDescriptorImageInfo imageInfo{};
+            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo.imageView = texture.ImageView; // TODO: Generalize
+            imageInfo.sampler = texture.Sampler; // TODO: Generalize
+
+            VkWriteDescriptorSet writeSampler = VkUtils::writeDescriptor(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Sets[i]);
+            writeSampler.pImageInfo = &imageInfo;
+            descriptorWrites[i] = writeSampler;
         }
         vkUpdateDescriptorSets(VkGPU::device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }

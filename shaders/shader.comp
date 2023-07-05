@@ -1,13 +1,24 @@
 #version 450
 
 struct Particle {
-	vec2 position;
-	vec2 velocity;
-    vec4 color;
+	vec3 position;
+    vec3 color;
+	vec3 velocity; 
 };
 
-layout (binding = 0) uniform ParameterUBO {
-    float deltaTime;
+struct camera {
+    mat4 view;
+    mat4 proj;
+};
+
+struct modelMatrix {
+    mat4 model;
+};
+
+layout(binding = 0) uniform UniformBufferObject {
+    modelMatrix model;
+    camera cam;
+    float dt;
 } ubo;
 
 layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
@@ -26,7 +37,7 @@ void main()
 
     Particle particleIn = particlesIn[index];
 
-    particlesOut[index].position = particleIn.position + particleIn.velocity.xy * ubo.deltaTime;
+    particlesOut[index].position = particleIn.position + particleIn.velocity * ubo.dt;
     particlesOut[index].velocity = particleIn.velocity;
 
     // Flip movement at window border

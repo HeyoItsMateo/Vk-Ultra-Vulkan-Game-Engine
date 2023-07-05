@@ -2,19 +2,6 @@
 
 #include <algorithm>
 
-template<typename T> struct member;
-template<typename Class, typename mType> struct member<mType Class::*>
-{
-    using type = mType;
-};
-
-template<auto mVar>
-auto constexpr transformVector(auto& srcVec) {
-    std::vector<typename member<decltype(mVar)>::type> dstVec(srcVec.size());
-    std::transform(srcVec.begin(), srcVec.end(), dstVec.begin(), [=](auto const& mSrc) { return mSrc.*mVar; });
-    return dstVec;
-}
-
 VkWindow window("Vulkan");
 VkGraphicsEngine app(window);
 
@@ -27,31 +14,17 @@ VkDataBuffer<SSBO> ssbo(shaderStorage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHA
 VkTexture planks("textures/planks.png");
 VkTextureSet textureSet(planks);
 
-// TODO: Determine how to extract the Sets and layouts members from the members of "descriptors"
-// and place into the pipeline object
-
-
 VkDescriptorSet sets[] = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], ssbo.Sets[VkSwapChain::currentFrame] };
 
-std::vector<VkDescriptor> descriptors = { ubo, textureSet, ssbo };
-std::vector<VkDescriptorSetLayout> layouts = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
+std::vector<VkDescriptor*> descriptors = { &ubo, &textureSet, &ssbo };
 
-std::vector<VkDescriptorSetLayout> test1 = transformVector<&VkDescriptor::SetLayout>(descriptors);
+VkShader vertShader("shaders/vertexVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+VkShader fragShader("shaders/vertexFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+VkShader compShader("shaders/pointComp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 
-VkShader vertShader("shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-VkShader fragShader("shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-VkShader compShader("shaders/comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+std::vector<VkShader*> shaders = { &vertShader, &fragShader };
 
-//std::vector<VkShader> shadersTest = { vertShader, fragShader };
-
-std::vector<VkPipelineShaderStageCreateInfo> shaderStages = { vertShader.stageInfo, fragShader.stageInfo };
-
-//std::vector<VkPipelineShaderStageCreateInfo> shaderStages = transformVector<&VkShader::stageInfo>(shadersTest);
-
-
-VkGraphicsPipeline pipeline(test1, shaderStages);
-
-
+VkGraphicsPipeline pipeline(descriptors, shaders);
 
 int main() {
     try {

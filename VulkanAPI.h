@@ -283,8 +283,8 @@ struct VkUtils {
         return colorBlending;
     }
     static VkRenderPassBeginInfo vkBeginRenderPass(VkRenderPass& renderPass, VkFramebuffer& swapChainFramebuffer, VkExtent2D swapChainExtent, std::array<VkClearValue, 2>& clearValues) {
-        VkRenderPassBeginInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        VkRenderPassBeginInfo renderPassInfo
+        { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
         renderPassInfo.renderPass = renderPass;
         renderPassInfo.framebuffer = swapChainFramebuffer;
         renderPassInfo.renderArea.offset = { 0, 0 };

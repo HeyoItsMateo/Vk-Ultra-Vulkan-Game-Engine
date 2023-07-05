@@ -215,9 +215,11 @@ private:
 struct VkCPU {
     VkCommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
+    std::vector<VkCommandBuffer> computeBuffers;
     VkCPU() {
         createCommandPool();
-        createCommandBuffers();
+        createCommandBuffers(commandBuffers);
+        createCommandBuffers(computeBuffers);
     }
     ~VkCPU() {
         vkDestroyCommandPool(VkGPU::device, commandPool, nullptr);
@@ -264,16 +266,16 @@ private:
             throw std::runtime_error("failed to create graphics command pool!");
         }
     }
-    void createCommandBuffers() {
-        commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    void createCommandBuffers(std::vector<VkCommandBuffer>& buffers) {
+        buffers.resize(MAX_FRAMES_IN_FLIGHT);
 
         VkCommandBufferAllocateInfo allocInfo
         { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
         allocInfo.commandPool = commandPool;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+        allocInfo.commandBufferCount = (uint32_t)buffers.size();
 
-        if (vkAllocateCommandBuffers(VkGPU::device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+        if (vkAllocateCommandBuffers(VkGPU::device, &allocInfo, buffers.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate command buffers!");
         }
     }
@@ -647,4 +649,3 @@ private:
         }
     }
 };
-

@@ -1,42 +1,61 @@
 #ifndef hDBO
 #define hDBO
 
-struct memBuffer : VkCPU {
-    VkBuffer mBuffer, sBuffer;
-    VkDeviceMemory mMemory, sMemory;
-    memBuffer(VkDeviceSize size) {
-        std::thread t1(&memBuffer::createBuffer, this, std::ref(mBuffer), size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-        std::thread t2(&memBuffer::createBuffer, this, std::ref(sBuffer), size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        t1.join();
-        t2.join();
+struct VkBufferObject : VkCPU {
+    VkBuffer VBO, EBO, sVBO, sEBO;
+    VkDeviceMemory mVBO, mEBO, smVBO, smEBO;
+    VkDeviceSize sizeVBO, sizeEBO;
+    VkBufferObject(std::vector<Vertex> const& content, std::vector<uint16_t> const& indices) {
+        std::thread tVBO(&VkBufferObject::getSize<Vertex>, this, std::ref(content), std::ref(sizeVBO));
+        std::thread tEBO(&VkBufferObject::getSize<uint16_t>, this, std::ref(indices), std::ref(sizeEBO));
+        tVBO.join(); tEBO.join();
 
-        t1 = std::thread(&memBuffer::allocateMemory, this, std::ref(mBuffer), std::ref(mMemory), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        t2 = std::thread(&memBuffer::allocateMemory, this, std::ref(sBuffer), std::ref(sMemory), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        t1.join();
-        t2.join();
+        tVBO = std::thread(&VkBufferObject::createBuffer, this, std::ref(VBO), sizeVBO, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        tEBO = std::thread(&VkBufferObject::createBuffer, this, std::ref(EBO), sizeEBO, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        std::thread tsVBO(&VkBufferObject::createBuffer, this, std::ref(sVBO), sizeVBO, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+        std::thread tsEBO(&VkBufferObject::createBuffer, this, std::ref(sEBO), sizeEBO, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+        tVBO.join(); tEBO.join(); tsVBO.join(); tsEBO.join();
+
+        tVBO = std::thread(&VkBufferObject::allocateMemory, this, std::ref(VBO), std::ref(mVBO), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        tEBO = std::thread(&VkBufferObject::allocateMemory, this, std::ref(EBO), std::ref(mEBO), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        tsVBO = std::thread(&VkBufferObject::allocateMemory, this, std::ref(sVBO), std::ref(smVBO), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        tsEBO = std::thread(&VkBufferObject::allocateMemory, this, std::ref(sEBO), std::ref(smEBO), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        tVBO.join(); tEBO.join(); tsVBO.join(); tsEBO.join();
+
+        tVBO = std::thread(&VkBufferObject::setData<Vertex>, this, std::ref(content), std::ref(VBO), std::ref(sVBO), std::ref(smVBO), sizeVBO);
+        tEBO = std::thread(&VkBufferObject::setData<uint16_t>, this, std::ref(indices), std::ref(EBO), std::ref(sEBO), std::ref(smEBO), sizeEBO);
+        tVBO.join(); tEBO.join();
     }
-    ~memBuffer() {
-        std::thread t1(vkDestroyBuffer, VkGPU::device, mBuffer, nullptr);
-        std::thread t2(vkDestroyBuffer, VkGPU::device, sBuffer, nullptr);
-        t1.join();
-        t2.join();
+    ~VkBufferObject() {
+        std::thread tsVBO(vkUnmapMemory, VkGPU::device, smVBO);
+        std::thread tsEBO(vkUnmapMemory, VkGPU::device, smEBO);
+        tsVBO.join(); tsEBO.join();
+        
+        std::thread tVBO(vkDestroyBuffer, VkGPU::device, VBO, nullptr);
+        std::thread tEBO(vkDestroyBuffer, VkGPU::device, EBO, nullptr);
+        tsVBO = std::thread(vkDestroyBuffer, VkGPU::device, sVBO, nullptr);
+        tsEBO = std::thread(vkDestroyBuffer, VkGPU::device, sEBO, nullptr);
+        tVBO.join(); tEBO.join(); tsVBO.join(); tsEBO.join();
+        
         //vkDestroyBuffer(pGPU->device, sBuffer, nullptr);
-        t1 = std::thread(vkFreeMemory, VkGPU::device, mMemory, nullptr);
-        t2 = std::thread(vkFreeMemory, VkGPU::device, sMemory, nullptr);
-        t1.join();
-        t2.join();
+        tVBO = std::thread(vkFreeMemory, VkGPU::device, mVBO, nullptr);
+        tEBO = std::thread(vkFreeMemory, VkGPU::device, mEBO, nullptr);
+        tsVBO = std::thread(vkFreeMemory, VkGPU::device, smVBO, nullptr);
+        tsEBO = std::thread(vkFreeMemory, VkGPU::device, smEBO, nullptr);
+        tVBO.join(); tEBO.join(); tsVBO.join(); tsEBO.join();
     }
-protected:
-    void copyBuffer(VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-
-        VkBufferCopy copyRegion{};
-        copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-        endSingleTimeCommands(commandBuffer);
+    void draw(VkCommandBuffer commandBuffer) {
+        // Vertex binding (objects to draw) and draw method
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &VBO, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, EBO, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(sizeEBO / sizeof(uint16_t)), 1, 0, 0, 0);
     }
 private:
+    template<typename T>
+    void getSize(std::vector<T> const& content, VkDeviceSize& size) {
+        size = sizeof(T) * content.size();
+    }
     void createBuffer(VkBuffer& buffer, VkDeviceSize size, VkBufferUsageFlags usage) {
         VkBufferCreateInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         bufferInfo.size = size;
@@ -62,23 +81,25 @@ private:
 
         vkBindBufferMemory(VkGPU::device, buffer, memory, 0);
     }
-};
-
-template<typename T>
-struct VkBufferObject : memBuffer {
-    VkBufferObject(std::vector<T> const& content)
-        : memBuffer(sizeof(T)*content.size())
-    {
-        VkDeviceSize bufferSize = sizeof(T) * content.size();
-
+    
+    template<typename T>
+    void setData(std::vector<T> const& content, VkBuffer& mBuffer, VkBuffer& sBuffer, VkDeviceMemory& sMemory, VkDeviceSize size) {
         void* data;
-        vkMapMemory(VkGPU::device, sMemory, 0, bufferSize, 0, &data);
-        memcpy(data, content.data(), (size_t)bufferSize);
-        
-        copyBuffer(sBuffer, mBuffer, bufferSize);
+        vkMapMemory(VkGPU::device, sMemory, 0, size, 0, &data);
+        memcpy(data, content.data(), (size_t)size);
+
+        copyBuffer(sBuffer, mBuffer, size);
     }
-    ~VkBufferObject() {
-        vkUnmapMemory(VkGPU::device, sMemory);
+    //TODO: Fix threading error when calling commandBuffers
+    //Method: Create commandBuffers in threads, then submit command buffers together after joining threads
+    void copyBuffer(VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize size) {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        VkBufferCopy copyRegion{};
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        endSingleTimeCommands(commandBuffer);
     }
 };
 
@@ -130,9 +151,7 @@ struct VkDataBuffer : VkCPU, VkDescriptor {
 
     VkDeviceSize bufferSize;
 
-
-
-    VkDataBuffer(T& ubo, VkDescriptorType type, VkShaderStageFlagBits flag) {
+    constexpr VkDataBuffer(T& ubo, VkDescriptorType type, VkShaderStageFlagBits flag) {
         createDataBuffer(ubo);
 
         createDescriptorSetLayout(type, flag);
@@ -161,7 +180,7 @@ struct VkDataBuffer : VkCPU, VkDescriptor {
     }
 private:
     void* data;
-    void constexpr createDataBuffer(T& ubo) {
+    void createDataBuffer(T& ubo) {
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -182,7 +201,7 @@ private:
             copyBuffer(stagingBuffer, Buffer[i], bufferSize);
         }
     }
-    void constexpr createBuffer(VkBuffer& buffer, VkDeviceMemory& memory, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
+    void createBuffer(VkBuffer& buffer, VkDeviceMemory& memory, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = size;
@@ -247,6 +266,8 @@ private:
 };
 
 struct VkTextureSet : VkDescriptor {
+
+
     VkDescriptorType mType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     VkShaderStageFlagBits mFlag = VK_SHADER_STAGE_FRAGMENT_BIT;
 

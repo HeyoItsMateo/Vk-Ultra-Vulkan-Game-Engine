@@ -23,31 +23,22 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\shader.vert">
+    <None Include="shaders\vertex.vert">
       <Filter>Resource Files\shaders</Filter>
     </None>
-    <None Include="shaders\shader.frag">
+    <None Include="shaders\vertex.frag">
       <Filter>Resource Files\shaders</Filter>
     </None>
     <None Include="shaders\compile.bat">
       <Filter>Resource Files\shaders</Filter>
     </None>
-    <None Include="shaders\frag.spv">
+    <None Include="shaders\point.vert">
       <Filter>Resource Files\shaders</Filter>
     </None>
-    <None Include="shaders\vert.spv">
+    <None Include="shaders\point.frag">
       <Filter>Resource Files\shaders</Filter>
     </None>
-    <None Include="shader.comp">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\comp.spv">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\test.vert">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\test.frag">
+    <None Include="shaders\shader.comp">
       <Filter>Resource Files\shaders</Filter>
     </None>
   </ItemGroup>
@@ -79,8 +70,14 @@
     <ClInclude Include="compShaderTest.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="testFile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="basicFunctions.h">
-      <Filter>Resource Files</Filter>
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="helperFunc.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -146,21 +146,20 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="shader.comp" />
-    <None Include="shaders\comp.spv" />
     <None Include="shaders\compile.bat" />
-    <None Include="shaders\frag.spv" />
-    <None Include="shaders\shader.frag" />
-    <None Include="shaders\shader.vert" />
-    <None Include="shaders\test.frag" />
-    <None Include="shaders\test.vert" />
-    <None Include="shaders\vert.spv" />
+    <None Include="shaders\shader.comp" />
+    <None Include="shaders\vertex.frag" />
+    <None Include="shaders\vertex.vert" />
+    <None Include="shaders\point.frag" />
+    <None Include="shaders\point.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="basicFunctions.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="compShaderTest.h" />
     <ClInclude Include="DBO.h" />
+    <ClInclude Include="helperFunc.h" />
+    <ClInclude Include="testFile.h" />
     <ClInclude Include="VkDescriptors.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="VulkanEngine.h" />

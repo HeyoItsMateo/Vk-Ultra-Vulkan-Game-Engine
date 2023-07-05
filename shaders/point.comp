@@ -1,16 +1,11 @@
-#version 460
-#extension GL_ARB_compute_shader : enable
-#extension GL_ARB_shader_storage_buffer_object : enable
+#version 450
+//#extension GL_ARB_compute_shader : enable
+//#extension GL_ARB_shader_storage_buffer_object : enable
 
 struct Particle {
 	vec3 position;
-	vec3 objVel;
-    vec4 color;
-};
-
-struct Obj {
-    mat4 objMtc;
-    vec3 objVel;
+    vec3 color;
+    vec3 velocity;
 };
 
 struct camera{
@@ -38,7 +33,25 @@ layout(std140, binding = 2) buffer SSBO_out {
 // Workgroup Invocation Layout
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
+void main() 
+{
+    uint index = gl_GlobalInvocationID.x;  
 
+    Particle particle = inSSBO[index];
+
+    outSSBO[index].position = particle.position + particle.velocity * ubo.dt;
+    outSSBO[index].velocity = particle.velocity;
+
+    // Flip movement at window border
+    if ((outSSBO[index].position.x <= -1.0) || (outSSBO[index].position.x >= 1.0)) {
+        outSSBO[index].velocity.x = -outSSBO[index].velocity.x;
+    }
+    if ((outSSBO[index].position.y <= -1.0) || (outSSBO[index].position.y >= 1.0)) {
+        outSSBO[index].velocity.y = -outSSBO[index].velocity.y;
+    }
+
+}
+/*
 // Organization and Indexing
 uvec3 nWG = gl_NumWorkGroups;
 uvec3 sWG = gl_WorkGroupSize;
@@ -59,6 +72,7 @@ vec3 Gravity(vec3 p1, vec3 p2, float m1, float m2){
     dist2 *= dist2;
     return rN * ((c*c*m1 * m1 * m2) / (4 + c*c*m1*m1*dist2));
 }
+
 
 void main() 
 {// Kinematic Motion of the Elements of the System
@@ -89,13 +103,8 @@ void main()
             objVel[j] = v;
         }
 
-
-        /*if ( distance(p0, p1) <= radius)
-        {// Collision Detection and Basic Adjustment
-            vec3 rN = normalize(p1 - p0);
-            Velocities[i].xyz *= rN;
-        }*/
         // Update Position
         objMtc[i][3].xyz += objVel[i] * dt;
     }   
 }
+*/

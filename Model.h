@@ -1,6 +1,34 @@
 #ifndef hModel
 #define hModel
 
+struct Topology {
+    glm::vec3 position;
+    glm::vec3 color;
+
+    template<typename T>
+    static VkVertexInputBindingDescription vkCreateBindings() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(T);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+    template<typename T>
+    static VkPipelineVertexInputStateCreateInfo vkCreateVertexInput() {
+        static auto bindingDescription = vkCreateBindings<T>();
+        static auto attributeDescriptions = vkCreateAttributes();
+
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo
+        { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+        return vertexInputInfo;
+    }
+};
+
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;
@@ -37,9 +65,20 @@ struct Vertex {
     }
 };
 
+struct Point : Topology {
+    static std::vector<VkVertexInputAttributeDescription> vkCreateAttributes() {
+        std::vector<VkVertexInputAttributeDescription> Attributes{
+            {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Point, position)},
+            { 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Point, color) }
+        };
+        return Attributes;
+    }
+    
+};
+
 struct modelMatrix {
     alignas(16) glm::mat4 model;
-    modelMatrix() {
+    constexpr modelMatrix() {
         model = glm::mat4(1.f);
     }
     void update() {
@@ -51,7 +90,7 @@ struct modelMatrix {
     }
 };
 
-struct VkTexture {
+struct VkTexture : VkCPU {
     VkImage Image;
     VkImageView ImageView;
     VkDeviceMemory ImageMemory;
@@ -59,8 +98,6 @@ struct VkTexture {
 
     VkSampler Sampler;
     int texWidth, texHeight, texChannels;
-
-    VkCPU CPU;
 
     VkTexture(const char* filename) {
         stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -161,7 +198,7 @@ private:
     }
 
     void transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -206,10 +243,10 @@ private:
             1, &barrier
         );
 
-        CPU.endSingleTimeCommands(commandBuffer);
+        endSingleTimeCommands(commandBuffer);
     }
     void copyBufferToImage(VkBuffer buffer) {
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -228,7 +265,7 @@ private:
 
         vkCmdCopyBufferToImage(commandBuffer, buffer, Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-        CPU.endSingleTimeCommands(commandBuffer);
+        endSingleTimeCommands(commandBuffer);
     }
     void generateMipmaps(VkFormat imageFormat) {
         // Check if image format supports linear blitting
@@ -239,7 +276,7 @@ private:
             throw std::runtime_error("texture image format does not support linear blitting!");
         }
 
-        VkCommandBuffer commandBuffer = CPU.beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -314,7 +351,7 @@ private:
             0, nullptr,
             1, &barrier);
 
-        CPU.endSingleTimeCommands(commandBuffer);
+        endSingleTimeCommands(commandBuffer);
 
     }
 

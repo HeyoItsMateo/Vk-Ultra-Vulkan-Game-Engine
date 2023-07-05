@@ -20,6 +20,14 @@
 #include "Model.h"
 #include "DBO.h"
 
+#include "helperFunc.h"
+
+
+//typedef void(__stdcall* vkDestroyFunction)(VkDevice, void ,const VkAllocationCallbacks*);
+
+const uint32_t PARTICLE_COUNT = 8192;
+
+
 const std::vector<Vertex> vertices = {
     {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
     {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
@@ -37,27 +45,8 @@ const std::vector<uint16_t> indices = {
     4, 5, 6, 6, 7, 4
 };
 
-struct Particle {
-    glm::vec3 position;
-    glm::vec3 velocity;
-    glm::vec4 color;
-
-    static VkVertexInputBindingDescription vkCreateBindings() {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Particle);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return bindingDescription;
-    }
-
-    static std::vector<VkVertexInputAttributeDescription> vkCreateAttributes() {
-        std::vector<VkVertexInputAttributeDescription> Attributes{
-            {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Particle, position)},
-            {1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, color)}
-        };
-        return Attributes;
-    }
+struct Particle : Point {
+    glm::vec3 velocity;  
 };
 
 struct UBO {
@@ -71,11 +60,23 @@ struct UBO {
         std::jthread t2( [this, window, extent, FOVdeg, nearPlane, farPlane] 
             { camera.update(window, extent, FOVdeg, nearPlane, farPlane); }
         );
+        std::jthread t3([this]
+            { deltaTime(); }
+        );
+    }
+private:
+    float lastFrameTime = 0.0f;
+    double lastTime = 0.0;
+    void deltaTime() {
+        double currentTime = glfwGetTime();
+        lastFrameTime = (currentTime - lastTime) * 1000.0;
+        dt = lastFrameTime * 2.f;
+        lastTime = currentTime;
     }
 };
 
 struct SSBO {
-    std::vector<Particle> particles{1000};
+    std::vector<Particle> particles{PARTICLE_COUNT};
     SSBO(int width, int height) {
         populate(particles, width, height);
     }
@@ -124,7 +125,7 @@ private:
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
         if (vkCreateShaderModule(VkGPU::device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create shader module!");
+            throw std::runtime_error("failed to create" + std::string(typeid(shaderModule).name()) + "!");
         }
     }
     // File Reader
@@ -147,49 +148,56 @@ private:
     }
 };
 
-// TODO: Find how to apply members from all elements of a pointer to an array to a different array
-struct VkPipelineStages {
-    VkPipelineShaderStageCreateInfo* mStages;
-    VkPipelineStages(VkShader* shaderStages) {
-        mStages = &shaderStages->stageInfo;
-    }
-    ~VkPipelineStages() {
-
-    }
-};
-
-struct VkGraphicsPipeline {
+struct VkPipelineBase {
     VkPipeline mPipeline;
     VkPipelineLayout mLayout;
-
-    VkBufferObject<Vertex> VBO;
-    VkBufferObject<uint16_t> EBO;
-
-    std::vector<VkDescriptorSet> Sets;
-
-    VkGraphicsPipeline(std::vector<VkDescriptorSetLayout>& layouts, std::vector<VkPipelineShaderStageCreateInfo>& shaderStages) :
-        VBO(vertices), EBO(indices) 
-    {
-        vkLoadSetLayout(layouts);
-        createShaderPipeline<Vertex>(shaderStages);
+    VkPipelineBase(std::vector<VkDescriptor*>& descriptors) {
+        std::vector<VkDescriptorSetLayout> layout = packMembers<&VkDescriptor::SetLayout>(descriptors);
+        vkLoadSetLayout(layout);
     }
-    ~VkGraphicsPipeline() {
+    ~VkPipelineBase() {
         vkDestroyPipeline(VkGPU::device, mPipeline, nullptr);
         vkDestroyPipelineLayout(VkGPU::device, mLayout, nullptr);
     }
     void bind(VkCommandBuffer commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
-        // Pipeline binding
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mLayout, 0, setCount, sets, 0, nullptr);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline);
+        vkCmdBindDescriptorSets(commandBuffer, bindPoint, mLayout, 0, setCount, sets, 0, nullptr);
+        vkCmdBindPipeline(commandBuffer, bindPoint, mPipeline);
+    }
+protected:
+    VkPipelineBindPoint bindPoint;
+    void vkLoadSetLayout(std::vector<VkDescriptorSetLayout>& SetLayout) {
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo
+        { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(SetLayout.size());
+        pipelineLayoutInfo.pSetLayouts = SetLayout.data();
 
-        // Vertex binding (objects to draw)
+        if (vkCreatePipelineLayout(VkGPU::device, &pipelineLayoutInfo, nullptr, &mLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create pipeline layout!");
+        }
+    }
+};
+
+struct VkGraphicsPipeline : VkPipelineBase {
+    VkBufferObject model;
+
+    VkGraphicsPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkShader*>& shaders)
+        : VkPipelineBase(descriptors), model(vertices, indices)
+    {
+        bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
+        //      and seperate the member variable 'model' from the pipeline
+        vkCreatePipeline<Vertex>(shaders);
+    }
+    void draw(VkCommandBuffer commandBuffer) {
+        // Vertex binding (objects to draw) and draw method - bind SSBO data, draw indexed to PARTICLE_COUNT
         VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &VBO.mBuffer, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, EBO.mBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &model.VBO, offsets); // &SSBO.mBuffer
+        vkCmdDraw(commandBuffer, PARTICLE_COUNT, 1, 0, 0);
     }
 private:
     template<typename T>
-    void createShaderPipeline(std::vector<VkPipelineShaderStageCreateInfo>& shaderStages) {
+    void vkCreatePipeline(std::vector<VkShader*>& shaders) {
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStages = packMembers<&VkShader::stageInfo>(shaders);
         //auto bindingDescription = T::vkCreateBindings();
         //auto attributeDescriptions = T::vkCreateAttributes();
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = T::vkCreateVertexInput();
@@ -233,7 +241,6 @@ private:
         { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
         pipelineInfo.pStages = shaderStages.data();
-        //pipelineInfo.pStages = pipeStages;
         pipelineInfo.pVertexInputState = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState = &inputAssembly;
         pipelineInfo.pViewportState = &viewportState;
@@ -251,17 +258,26 @@ private:
             throw std::runtime_error("failed to create graphics pipeline!");
         }
     }
-    void vkLoadShaders(std::vector<VkShader>& shaderStages) {
+};
 
+
+struct VkComputePipeline : VkPipelineBase {
+    VkComputePipeline(std::vector<VkDescriptor*>& descriptors, VkPipelineShaderStageCreateInfo computeStage)
+        : VkPipelineBase(descriptors)
+    {
+        bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+        vkCreatePipeline(computeStage);
     }
-    void vkLoadSetLayout(std::vector<VkDescriptorSetLayout>& SetLayout) {
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo
-        { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-        pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(SetLayout.size());
-        pipelineLayoutInfo.pSetLayouts = SetLayout.data();
+private:
+    void vkCreatePipeline(VkPipelineShaderStageCreateInfo computeStage) {
+        VkComputePipelineCreateInfo pipelineInfo
+        { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+        pipelineInfo.layout = mLayout;
+        pipelineInfo.stage = computeStage;
 
-        if (vkCreatePipelineLayout(VkGPU::device, &pipelineLayoutInfo, nullptr, &mLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create pipeline layout!");
+        if (vkCreateComputePipelines(VkGPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &mPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline!");
         }
     }
 };
+

@@ -28,7 +28,7 @@ const uint32_t HEIGHT = 600;
 
 const uint32_t PARTICLE_COUNT = 8192;
 
-const int MAX_FRAMES_IN_FLIGHT = 2;
+const int MAX_FRAMES_IN_FLIGHT = 1;
 
 const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -81,8 +81,8 @@ struct UniformBufferObject {
 };
 
 struct Particle {
-    glm::vec2 position;
-    glm::vec2 velocity;
+    glm::vec3 position;
+    glm::vec3 velocity;
     glm::vec4 color;
 
     static VkVertexInputBindingDescription getBindingDescription() {
@@ -99,7 +99,7 @@ struct Particle {
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[0].offset = offsetof(Particle, position);
 
         attributeDescriptions[1].binding = 0;
@@ -793,8 +793,8 @@ private:
             float theta = rndDist(rndEngine) * 2.0f * 3.14159265358979323846f;
             float x = r * cos(theta) * HEIGHT / WIDTH;
             float y = r * sin(theta);
-            particle.position = glm::vec2(x, y);
-            particle.velocity = glm::normalize(glm::vec2(x, y)) * 0.00025f;
+            particle.position = glm::vec3(x, y, 0);
+            particle.velocity = glm::normalize(glm::vec3(x, y, 0)) * 0.00025f;
             particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
         }
 

@@ -5,8 +5,12 @@
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtx/vector_angle.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -22,6 +26,9 @@
 #include <optional>
 #include <set>
 #include <random>
+
+#include "Model.h"
+#include "Camera.h"
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -77,7 +84,32 @@ struct SwapChainSupportDetails {
 };
 
 struct UniformBufferObject {
-    float deltaTime = 1.0f;
+    modelMatrix model;
+    camMatrix camera;
+    float deltaTime;
+    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {
+        
+        std::jthread t1([this]
+            { model.update(); }
+        );
+        
+        std::jthread t2([this, window, extent, FOVdeg, nearPlane, farPlane]
+            { camera.update(window, extent, FOVdeg, nearPlane, farPlane); }
+        );
+        
+        std::jthread t3([this]
+            { dt(); }
+        );
+    }
+private:
+    float lastFrameTime = 0.0f;
+    double lastTime = 0.0;
+    void dt() {
+        double currentTime = glfwGetTime();
+        lastFrameTime = (currentTime - lastTime) * 1000.0;
+        lastTime = currentTime;
+        deltaTime = lastTime * 2.f;
+    }
 };
 
 struct Particle {
@@ -111,12 +143,36 @@ struct Particle {
     }
 };
 
+void userInput(GLFWwindow* window, int key, int scancode, int action, int mods)
+{// Sets Keyboard Commands
+    switch (action)
+    {// Checks for user keypress
+    case GLFW_PRESS:
+        switch (key)
+        {// Checks for keypress type and returns corresponding action
+        case GLFW_KEY_ESCAPE:
+            glfwSetWindowShouldClose(window, true);
+            break;
+        case GLFW_KEY_C:
+            //wireframe = !wireframe;
+            break;
+        case GLFW_KEY_V:
+            //vSync = !vSync;
+            //glfwSwapInterval(vSync);
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 class ComputeShaderApplication {
 public:
-    void run() {
+    void run(UniformBufferObject& ubo) {
         initWindow();
         initVulkan();
-        mainLoop();
+        mainLoop(ubo);
         cleanup();
     }
 
@@ -217,10 +273,12 @@ private:
         createSyncObjects();
     }
 
-    void mainLoop() {
+    void mainLoop(UniformBufferObject& ubo) {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
-            drawFrame();
+            std::jthread t1(glfwSetKeyCallback, window, userInput);
+            ubo.update(window, swapChainExtent);
+            drawFrame(ubo);
             // We want to animate the particle system using the last frames time to get smooth, frame-rate independent animation
             double currentTime = glfwGetTime();
             lastFrameTime = (currentTime - lastTime) * 1000.0;
@@ -229,6 +287,7 @@ private:
 
         vkDeviceWaitIdle(device);
     }
+
 
     void cleanupSwapChain() {
         for (auto framebuffer : swapChainFramebuffers) {
@@ -567,7 +626,7 @@ private:
         layoutBindings[0].descriptorCount = 1;
         layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         layoutBindings[0].pImmutableSamplers = nullptr;
-        layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        layoutBindings[0].stageFlags = (VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT);
 
         layoutBindings[1].binding = 1;
         layoutBindings[1].descriptorCount = 1;
@@ -681,8 +740,8 @@ private:
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0;
-        pipelineLayoutInfo.pSetLayouts = nullptr;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
@@ -1037,6 +1096,7 @@ private:
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &computeDescriptorSets[currentFrame], 0, nullptr);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
         VkViewport viewport{};
@@ -1052,6 +1112,8 @@ private:
         scissor.offset = { 0, 0 };
         scissor.extent = swapChainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+
 
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &shaderStorageBuffers[currentFrame], offsets);
@@ -1112,21 +1174,19 @@ private:
         }
     }
 
-    void updateUniformBuffer(uint32_t currentImage) {
-        UniformBufferObject ubo{};
-        ubo.deltaTime = lastFrameTime * 2.0f;
-
+    void updateUniformBuffer(UniformBufferObject& ubo, uint32_t currentImage) {
+        //ubo.deltaTime = lastTime * 2.f;
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
 
-    void drawFrame() {
+    void drawFrame(UniformBufferObject& ubo) {
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
         // Compute submission        
         vkWaitForFences(device, 1, &computeInFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-        updateUniformBuffer(currentFrame);
+        updateUniformBuffer(ubo, currentFrame);
 
         vkResetFences(device, 1, &computeInFlightFences[currentFrame]);
 
@@ -1407,11 +1467,13 @@ private:
     }
 };
 
+UniformBufferObject testBO;
+
 int main() {
     ComputeShaderApplication app;
 
     try {
-        app.run();
+        app.run(testBO);
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;

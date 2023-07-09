@@ -6,7 +6,17 @@ struct Particle {
     vec4 color;
 };
 
+struct modelMatrix{
+    mat4 model;
+};
+struct camMatrix {
+    mat4 view;
+    mat4 proj;
+};
+
 layout (binding = 0) uniform ParameterUBO {
+    modelMatrix model;
+    camMatrix camera;
     float deltaTime;
 } ubo;
 

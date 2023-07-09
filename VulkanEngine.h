@@ -1,74 +1,5 @@
 #include "VulkanGPL.h"
 
-struct VkRPU {
-    VkCommandPool commandPool;
-    std::vector<VkCommandBuffer> commandBuffers;
-    std::vector<VkCommandBuffer> commandBuffers2;
-    std::vector<VkCommandBuffer> computeBuffers;
-    VkRPU() {
-        createCommandPool();
-        createCommandBuffers(commandBuffers);
-        createCommandBuffers(commandBuffers2);
-        createCommandBuffers(computeBuffers);
-    }
-    ~VkRPU() {
-        vkDestroyCommandPool(VkGPU::device, commandPool, nullptr);
-    }
-    //TODO: Parallelize single time commands
-    void beginSingleTimeCommands(VkCommandBuffer& commandBuffer, uint32_t bufferCount = 1) {
-        VkCommandBufferAllocateInfo allocInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = commandPool;
-        allocInfo.commandBufferCount = bufferCount; //TODO: find out how to allocate two command buffers for parallel writing/submission
-
-        vkAllocateCommandBuffers(VkGPU::device, &allocInfo, &commandBuffer);
-
-        VkCommandBufferBeginInfo beginInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    }
-    void endSingleTimeCommands(VkCommandBuffer& commandBuffer, uint32_t bufferCount = 1) {
-        vkEndCommandBuffer(commandBuffer);
-
-        VkSubmitInfo submitInfo
-        { VK_STRUCTURE_TYPE_SUBMIT_INFO };
-        submitInfo.commandBufferCount = bufferCount; //TODO: find out how to allocate two or more command buffers
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-        vkQueueSubmit(VkGPU::graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(VkGPU::graphicsQueue);
-
-        vkFreeCommandBuffers(VkGPU::device, commandPool, 1, &commandBuffer);
-    }
-private:
-    void createCommandPool() {
-        VkCommandPoolCreateInfo poolInfo
-        { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = VkGPU::graphicsFamily.value();
-
-        if (vkCreateCommandPool(VkGPU::device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create graphics command pool!");
-        }
-    }
-    void createCommandBuffers(std::vector<VkCommandBuffer>& buffers) {
-        buffers.resize(MAX_FRAMES_IN_FLIGHT);
-
-        VkCommandBufferAllocateInfo allocInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t)buffers.size();
-
-        if (vkAllocateCommandBuffers(VkGPU::device, &allocInfo, buffers.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate command buffers!");
-        }
-    }
-};
-
 struct VkSyncObjects {
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -116,7 +47,7 @@ struct VkSyncObjects {
     }
 };
 
-struct VkGraphicsEngine : VkSwapChain, VkSyncObjects, VkRPU {
+struct VkGraphicsEngine : VkSwapChain, VkSyncObjects, VkCPU {
     VkGraphicsEngine(VkWindow& pWindow) : VkSwapChain(pWindow) {
     }
     void run(VkGraphicsPipeline<Vertex>& pipeline, VkTestPipeline<Particle>& ptclPpln, VkComputePipeline& computePpln, VkStorageBuffer& testo, UBO& uniforms, VkUniformBuffer<UBO>& ubo, uint32_t setCount, VkDescriptorSet* sets) {
@@ -155,7 +86,6 @@ struct VkGraphicsEngine : VkSwapChain, VkSyncObjects, VkRPU {
 
             VkSemaphore waitSemaphores[] = { computeFinishedSemaphores[currentFrame], imageAvailableSemaphores[currentFrame]};
             VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-            VkCommandBuffer commands[] = {commandBuffers2[currentFrame], commandBuffers[currentFrame]};
 
             vkSubmitGraphicsQueue<2>(waitSemaphores, waitStages);
             vkPresentImage(imageIndex);

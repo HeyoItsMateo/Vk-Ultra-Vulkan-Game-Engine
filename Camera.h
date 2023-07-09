@@ -5,8 +5,8 @@ struct camMatrix {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
     camMatrix() {
-        position = glm::vec3(2.f, 1.f, 2.0f);
-        Orientation = glm::vec3(-2.f, 0.f, -2.f);
+        position = glm::vec3(2.f, 2.f, 2.0f);
+        Orientation = glm::vec3(-2.f, -2.f, -2.f);
         Up = glm::vec3(0.f, 1.f, 0.f);
 
         view = glm::mat4(1.0f);

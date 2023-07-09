@@ -55,7 +55,7 @@ struct Particle : Point {
 struct UBO {
     modelMatrix model;
     camMatrix camera;
-    float dt;
+    float dt = 1.f;
     void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg = 45.f, float nearPlane = 0.1f, float farPlane = 10.f) {
         std::jthread t1( [this] 
             { model.update(); }
@@ -64,15 +64,15 @@ struct UBO {
             { camera.update(window, extent, FOVdeg, nearPlane, farPlane); }
         );
         std::jthread t3([this]
-            { deltaTime(dt); }
+            { deltaTime(); }
         );
     }
 private:
     float lastFrameTime = 0.0f;
     double lastTime = 0.0;
-    void deltaTime(float& dt) {
+    void deltaTime() {
         double currentTime = glfwGetTime();
-        lastFrameTime = (currentTime - lastTime) * 1000000.0;
+        lastFrameTime = (currentTime - lastTime) * 1000.0;
         dt = lastFrameTime * 2.f;
         lastTime = currentTime;
     }

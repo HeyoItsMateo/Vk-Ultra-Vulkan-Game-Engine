@@ -1,5 +1,74 @@
 #include "VulkanGPL.h"
 
+struct VkRPU {
+    VkCommandPool commandPool;
+    std::vector<VkCommandBuffer> commandBuffers;
+    std::vector<VkCommandBuffer> commandBuffers2;
+    std::vector<VkCommandBuffer> computeBuffers;
+    VkRPU() {
+        createCommandPool();
+        createCommandBuffers(commandBuffers);
+        createCommandBuffers(commandBuffers2);
+        createCommandBuffers(computeBuffers);
+    }
+    ~VkRPU() {
+        vkDestroyCommandPool(VkGPU::device, commandPool, nullptr);
+    }
+    //TODO: Parallelize single time commands
+    void beginSingleTimeCommands(VkCommandBuffer& commandBuffer, uint32_t bufferCount = 1) {
+        VkCommandBufferAllocateInfo allocInfo
+        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool = commandPool;
+        allocInfo.commandBufferCount = bufferCount; //TODO: find out how to allocate two command buffers for parallel writing/submission
+
+        vkAllocateCommandBuffers(VkGPU::device, &allocInfo, &commandBuffer);
+
+        VkCommandBufferBeginInfo beginInfo
+        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    }
+    void endSingleTimeCommands(VkCommandBuffer& commandBuffer, uint32_t bufferCount = 1) {
+        vkEndCommandBuffer(commandBuffer);
+
+        VkSubmitInfo submitInfo
+        { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+        submitInfo.commandBufferCount = bufferCount; //TODO: find out how to allocate two or more command buffers
+        submitInfo.pCommandBuffers = &commandBuffer;
+
+        vkQueueSubmit(VkGPU::graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(VkGPU::graphicsQueue);
+
+        vkFreeCommandBuffers(VkGPU::device, commandPool, 1, &commandBuffer);
+    }
+private:
+    void createCommandPool() {
+        VkCommandPoolCreateInfo poolInfo
+        { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = VkGPU::graphicsFamily.value();
+
+        if (vkCreateCommandPool(VkGPU::device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create graphics command pool!");
+        }
+    }
+    void createCommandBuffers(std::vector<VkCommandBuffer>& buffers) {
+        buffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+        VkCommandBufferAllocateInfo allocInfo
+        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+        allocInfo.commandPool = commandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = (uint32_t)buffers.size();
+
+        if (vkAllocateCommandBuffers(VkGPU::device, &allocInfo, buffers.data()) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate command buffers!");
+        }
+    }
+};
+
 struct VkSyncObjects {
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -47,10 +116,10 @@ struct VkSyncObjects {
     }
 };
 
-struct VkGraphicsEngine : VkSwapChain, VkSyncObjects, VkCPU {
+struct VkGraphicsEngine : VkSwapChain, VkSyncObjects, VkRPU {
     VkGraphicsEngine(VkWindow& pWindow) : VkSwapChain(pWindow) {
     }
-    void run(VkGraphicsPipeline& pipeline, UBO& uniforms, VkDataBuffer<UBO>& ubo, uint32_t setCount, VkDescriptorSet* sets) {
+    void run(VkGraphicsPipeline<Vertex>& pipeline, VkTestPipeline<Particle>& ptclPpln, VkComputePipeline& computePpln, VkStorageBuffer& testo, UBO& uniforms, VkUniformBuffer<UBO>& ubo, uint32_t setCount, VkDescriptorSet* sets) {
         
 
         while (!glfwWindowShouldClose(window)) {
@@ -60,51 +129,47 @@ struct VkGraphicsEngine : VkSwapChain, VkSyncObjects, VkCPU {
             uniforms.update(window, Extent);
             ubo.update(currentFrame, &uniforms);
 
-            drawFrame(pipeline, setCount, sets);
+            ////////////////////
+
+            uint32_t imageIndex;
+
+            vkAquireImage(imageIndex);
+
+            /**/
+            // Compute Queue
+            vkComputeSync();
+            //ptclPpln.bind(computeBuffers[currentFrame], setCount, &sets[currentFrame]);
+            computePpln.computeCommand(computeBuffers[currentFrame], setCount, sets);
+            vkSubmitComputeQueue();
+            /**/
+            // Render Queue
+            vkRenderSync();
+            beginRender(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex]);
+            //ptclPpln.renderCommand(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], ssbo.mSSBO[currentFrame], setCount, sets);
+            //pipeline.renderCommand(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], setCount, sets);
+            //ptclPpln.renderTest(commandBuffers[currentFrame], ssbo.mSSBO[currentFrame], setCount, sets);
+            ptclPpln.renderTest(commandBuffers[currentFrame], testo.Buffer[currentFrame], setCount, sets);
+            pipeline.renderTest(commandBuffers[currentFrame], setCount, sets);
+            
+            endRender(commandBuffers[currentFrame]);
+
+            VkSemaphore waitSemaphores[] = { computeFinishedSemaphores[currentFrame], imageAvailableSemaphores[currentFrame]};
+            VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+            VkCommandBuffer commands[] = {commandBuffers2[currentFrame], commandBuffers[currentFrame]};
+
+            vkSubmitGraphicsQueue<2>(waitSemaphores, waitStages);
+            vkPresentImage(imageIndex);
+
+            currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+            //drawFrame(pipeline, setCount, sets);
         }
         vkDeviceWaitIdle(device);
     }
 private:
-    void drawFrame(VkGraphicsPipeline& pipeline, uint32_t setCount, VkDescriptorSet* sets) {
-        uint32_t imageIndex;
-
-        vkAquireImage(imageIndex);
-
-        // Compute Queue
-        //vkCompute(computePipeline, setCount, sets);
-        //vkSubmitComputeQueue();
- 
-        // Graphics Queue
-        vkRender(pipeline, imageIndex, setCount, sets);
-
-        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
-        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-
-        vkSubmitGraphicsQueue<1>(waitSemaphores, waitStages);
-        vkPresentImage(imageIndex);
-
-        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-    }
-
-    void vkCompute(VkComputePipeline& pipeline, uint32_t setCount, VkDescriptorSet* sets) {
+    void vkComputeSync() {
         vkWaitForFences(device, 1, &computeInFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
         vkResetFences(device, 1, &computeInFlightFences[currentFrame]);
         vkResetCommandBuffer(computeBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-
-        VkCommandBufferBeginInfo beginInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-
-        if (vkBeginCommandBuffer(computeBuffers[currentFrame], &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("failed to begin recording command buffer!");
-        }
-
-        pipeline.bind(computeBuffers[currentFrame], setCount, sets);
-        vkCmdDispatch(computeBuffers[currentFrame], PARTICLE_COUNT / 256, 1, 1);
-
-        if (vkEndCommandBuffer(computeBuffers[currentFrame]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to record compute command buffer!");
-        }
-
     }
 
     void vkSubmitComputeQueue() {
@@ -120,15 +185,16 @@ private:
         };
     }
 
-    void vkRender(VkGraphicsPipeline& pipeline, uint32_t imageIndex, uint32_t setCount, VkDescriptorSet* sets) { //TODO: rename to vkRenderImages()
+    void vkRenderSync() { //TODO: rename to vkRenderImages()
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
         vkResetFences(device, 1, &inFlightFences[currentFrame]);
         vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-
+    }
+    void beginRender(VkCommandBuffer& commandBuffer, VkFramebuffer& frameBuffer) {
         VkCommandBufferBeginInfo beginInfo
         { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 
-        if (vkBeginCommandBuffer(commandBuffers[currentFrame], &beginInfo) != VK_SUCCESS) {
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer!");
         }
 
@@ -136,34 +202,34 @@ private:
         clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
         clearValues[1].depthStencil = { 1.0f, 0 };
 
-        VkRenderPassBeginInfo renderPassInfo = VkUtils::vkBeginRenderPass(renderPass, swapChainFramebuffers[imageIndex], Extent, clearValues);
-
-        vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        VkRenderPassBeginInfo renderPassInfo = vkBeginRenderPass(frameBuffer, clearValues);
 
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float)Extent.width;
-        viewport.height = (float)Extent.height;
+        viewport.width = (float)VkSwapChain::Extent.width;
+        viewport.height = (float)VkSwapChain::Extent.height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(commandBuffers[currentFrame], 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = { 0, 0 };
-        scissor.extent = Extent;
-        vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
+        scissor.extent = VkSwapChain::Extent;
 
-        pipeline.bind(commandBuffers[currentFrame], setCount, sets);
-        pipeline.model.draw(commandBuffers[currentFrame]);
-
-        vkCmdEndRenderPass(commandBuffers[currentFrame]);
-        if (vkEndCommandBuffer(commandBuffers[currentFrame]) != VK_SUCCESS) {
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    }
+    void endRender(VkCommandBuffer& commandBuffer) {
+        vkCmdEndRenderPass(commandBuffer);
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer!");
         }
     }
-
     template<int waitCount>
+    // Create operator overload for '<<' operator so that the following works
+    // vkSubmitQueue << Graphics << waitFlags
+    // vkSubmitCommand << commandCount(1) << Commands(commandBuffers)
     void vkSubmitGraphicsQueue(VkSemaphore* waitSemaphores, VkPipelineStageFlags* waitStages) {
         VkSubmitInfo submitInfo
         { VK_STRUCTURE_TYPE_SUBMIT_INFO };
@@ -179,7 +245,18 @@ private:
             throw std::runtime_error("failed to submit draw command buffer!");
         }
     }
+    VkRenderPassBeginInfo vkBeginRenderPass(VkFramebuffer& swapChainFramebuffer, std::array<VkClearValue, 2>& clearValues) {
+        VkRenderPassBeginInfo renderPassInfo
+        { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+        renderPassInfo.renderPass = VkSwapChain::renderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffer;
+        renderPassInfo.renderArea.offset = { 0, 0 };
+        renderPassInfo.renderArea.extent = VkSwapChain::Extent;
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
 
+        return renderPassInfo;
+    }
     void vkAquireImage(uint32_t& imageIndex) {
         VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 

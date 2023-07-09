@@ -23,8 +23,6 @@ struct VkObject {
     }
 };
 
-typedef VkObject<VkShaderModule, VkShaderModuleCreateInfo, vkCreateShaderModule, vkDestroyShaderModule> VkShaderTest;
-
 
 template<typename VkHandle>
 using VkMemoryFunction = void(*)(VkDevice, VkHandle, VkMemoryRequirements*);

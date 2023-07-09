@@ -79,5 +79,8 @@
     <ClInclude Include="helperFunc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SSBO.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

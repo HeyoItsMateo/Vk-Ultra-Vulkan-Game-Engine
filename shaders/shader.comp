@@ -21,11 +21,11 @@ layout(binding = 0) uniform UniformBufferObject {
     float dt;
 } ubo;
 
-layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
+layout(std140, set = 2, binding = 0) buffer ParticleSSBOIn {
    Particle particlesIn[ ];
 };
 
-layout(std140, binding = 2) buffer ParticleSSBOOut {
+layout(std140, set = 2, binding = 1) buffer ParticleSSBOOut {
    Particle particlesOut[ ];
 };
 
@@ -37,15 +37,7 @@ void main()
 
     Particle particleIn = particlesIn[index];
 
-    particlesOut[index].position = particleIn.position + particleIn.velocity * ubo.dt;
+    particlesIn[index].position = particleIn.position; + vec3(10.f,0.f,0.f);
+    particlesOut[index].position = particlesOut.position;
     particlesOut[index].velocity = particleIn.velocity;
-
-    // Flip movement at window border
-    if ((particlesOut[index].position.x <= -1.0) || (particlesOut[index].position.x >= 1.0)) {
-        particlesOut[index].velocity.x = -particlesOut[index].velocity.x;
-    }
-    if ((particlesOut[index].position.y <= -1.0) || (particlesOut[index].position.y >= 1.0)) {
-        particlesOut[index].velocity.y = -particlesOut[index].velocity.y;
-    }
-
 }

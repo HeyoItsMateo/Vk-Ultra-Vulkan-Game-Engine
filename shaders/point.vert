@@ -24,5 +24,5 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 void main() {
     gl_PointSize = 14.0;
     gl_Position = ubo.cam.proj * ubo.cam.view * vec4(inPosition, 1.0);
-    fragColor = vec4(inColor,1.f);
+    fragColor = vec4(inColor, 1.f);
 }

@@ -3,7 +3,9 @@
 
 
 template<typename T> struct member;
-template<typename Class, typename mType> struct member<mType Class::*>
+
+template<typename Class, typename mType>
+struct member<mType Class::*>
 {
     using type = mType;
 };

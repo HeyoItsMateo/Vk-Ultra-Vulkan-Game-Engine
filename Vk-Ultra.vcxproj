@@ -159,6 +159,7 @@
     <ClInclude Include="compShaderTest.h" />
     <ClInclude Include="DBO.h" />
     <ClInclude Include="helperFunc.h" />
+    <ClInclude Include="SSBO.h" />
     <ClInclude Include="testFile.h" />
     <ClInclude Include="VkDescriptors.h" />
     <ClInclude Include="Model.h" />

@@ -229,15 +229,6 @@ void userInput(GLFWwindow* window, int key, int scancode, int action, int mods)
 
 
 struct VkUtils {
-    static VkDescriptorSetLayoutBinding bindSetLayout(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags stageFlags) {
-        VkDescriptorSetLayoutBinding layoutBinding{};
-        layoutBinding.binding = binding;
-        layoutBinding.descriptorCount = 1;
-        layoutBinding.descriptorType = descriptorType;
-        layoutBinding.pImmutableSamplers = nullptr;
-        layoutBinding.stageFlags = stageFlags;
-        return layoutBinding;
-    }
     static VkWriteDescriptorSet writeDescriptor(uint32_t binding, VkDescriptorType descriptorType, VkDescriptorSet descriptorSet) {
         VkWriteDescriptorSet writeDescriptor{};
         writeDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -281,18 +272,6 @@ struct VkUtils {
         colorBlending.blendConstants[2] = 0.0f;
         colorBlending.blendConstants[3] = 0.0f;
         return colorBlending;
-    }
-    static VkRenderPassBeginInfo vkBeginRenderPass(VkRenderPass& renderPass, VkFramebuffer& swapChainFramebuffer, VkExtent2D swapChainExtent, std::array<VkClearValue, 2>& clearValues) {
-        VkRenderPassBeginInfo renderPassInfo
-        { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
-        renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = swapChainFramebuffer;
-        renderPassInfo.renderArea.offset = { 0, 0 };
-        renderPassInfo.renderArea.extent = swapChainExtent;
-        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        renderPassInfo.pClearValues = clearValues.data();
-
-        return renderPassInfo;
     }
     static VkPipelineDepthStencilStateCreateInfo vkCreateDepthStencil() {
         VkPipelineDepthStencilStateCreateInfo depthStencil{};

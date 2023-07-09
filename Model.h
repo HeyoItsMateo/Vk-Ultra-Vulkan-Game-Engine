@@ -1,22 +1,29 @@
 #ifndef hModel
 #define hModel
 
-struct Topology {
+template<VkPrimitiveTopology topology>
+struct Primitive {
+    const static VkPrimitiveTopology topology = topology;
     glm::vec3 position;
     glm::vec3 color;
-
-    template<typename T>
+    
     static VkVertexInputBindingDescription vkCreateBindings() {
         VkVertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(T);
+        bindingDescription.stride = sizeof(Primitive);
         bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
         return bindingDescription;
     }
-    template<typename T>
+    static std::vector<VkVertexInputAttributeDescription> vkCreateAttributes() {
+        std::vector<VkVertexInputAttributeDescription> Attributes{
+            { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Primitive, position)}, // Position
+            { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Primitive, color) }     // Texture Coordinate
+        };
+        return Attributes;
+    }
     static VkPipelineVertexInputStateCreateInfo vkCreateVertexInput() {
-        static auto bindingDescription = vkCreateBindings<T>();
+        static auto bindingDescription = vkCreateBindings();
         static auto attributeDescriptions = vkCreateAttributes();
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo
@@ -33,6 +40,8 @@ struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;
     glm::vec2 texCoord;
+
+    const static VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     static VkVertexInputBindingDescription vkCreateBindings() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -63,17 +72,6 @@ struct Vertex {
         vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
         return vertexInputInfo;
     }
-};
-
-struct Point : Topology {
-    static std::vector<VkVertexInputAttributeDescription> vkCreateAttributes() {
-        std::vector<VkVertexInputAttributeDescription> Attributes{
-            {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Point, position)},
-            { 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Point, color) }
-        };
-        return Attributes;
-    }
-    
 };
 
 struct modelMatrix {
@@ -198,7 +196,8 @@ private:
     }
 
     void transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer;
+        beginSingleTimeCommands(commandBuffer);
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -246,7 +245,8 @@ private:
         endSingleTimeCommands(commandBuffer);
     }
     void copyBufferToImage(VkBuffer buffer) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer;
+        beginSingleTimeCommands(commandBuffer);
 
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -276,7 +276,8 @@ private:
             throw std::runtime_error("texture image format does not support linear blitting!");
         }
 
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        VkCommandBuffer commandBuffer;
+        beginSingleTimeCommands(commandBuffer);
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;

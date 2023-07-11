@@ -4,8 +4,9 @@
 struct camMatrix {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
+    alignas(16) glm::vec3 position;
     camMatrix() {
-        position = glm::vec3(2.f, 1.f, 2.0f);
+        position = glm::vec3(2.0f, 1.0f, 2.0f);
         Orientation = glm::vec3(-2.f, 0.f, -2.f);
         Up = glm::vec3(0.f, 1.f, 0.f);
 
@@ -26,7 +27,6 @@ struct camMatrix {
         proj[1][1] *= -1;
     }
 protected:
-    glm::vec3 position;
     glm::vec3 Orientation;
     glm::vec3 Up;
     float velocity = 0.05f;

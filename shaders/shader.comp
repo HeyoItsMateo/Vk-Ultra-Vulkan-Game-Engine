@@ -1,42 +1,86 @@
 #version 450
 
-struct Particle {
-	vec3 position;
-    vec3 color;
-	vec3 velocity; 
-};
-
 struct camera {
     mat4 view;
     mat4 proj;
-};
-
-struct modelMatrix {
-    mat4 model;
+    vec3 position;
 };
 
 layout(binding = 0) uniform UniformBufferObject {
-    modelMatrix model;
-    camera cam;
     float dt;
+    mat4 model;
+    camera cam;  
 } ubo;
 
-layout(std140, set = 2, binding = 0) readonly buffer ParticleSSBOIn {
+struct Particle {
+	vec4 position;
+    vec4 color;
+	vec4 velocity; 
+};
+
+layout(std140, set = 2, binding = 0) readonly buffer inSSBO {
    Particle particlesIn[ ];
 };
 
-layout(std140, set = 2, binding = 1) buffer ParticleSSBOOut {
+layout(std140, set = 2, binding = 1) buffer outSSBO {
    Particle particlesOut[ ];
 };
 
-layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x = 10, local_size_y = 10, local_size_z = 10) in;
+
+// Organization and Indexing
+uvec3 nWG = gl_NumWorkGroups;
+uvec3 sWG = gl_WorkGroupSize;
+uint i = gl_WorkGroupID.x + (nWG.x * gl_WorkGroupID.y) + (nWG.x * nWG.y * gl_WorkGroupID.z);
+uint j = gl_LocalInvocationID.x + (sWG.x * gl_LocalInvocationID.y) + (sWG.x * sWG.y *gl_LocalInvocationID.z);
+    
+// Globals
+const float c = 1.0f;
+const float e = 2.7182818284;
+
+// Calculates acceleration towards a position
+vec3 Gravity(vec3 p1, vec3 p2, float m1, float m2) {
+    vec3 rN = normalize(p2 - p1);
+    float dist2 = distance(p2, p1);
+    dist2 *= dist2;
+    return rN * ((c*c*m1 * m1 * m2) / (4 + c*c*m1*m1*dist2));
+}
 
 void main() 
 {
-    uint index = gl_GlobalInvocationID.x;  
+    particlesOut[i].position.xyz = particlesIn[i].position.xyz;
+    
+    // Kinematic Motion of the Elements of the System
+    vec3 Acceleration;
+    if (i != j)
+    {// Particle Interaction Calculations
+        // Interacting Particle Properties
+        float m0 = 0.25f;
+        float m1 = 0.25f;
+        vec3 p0 = particlesIn[i].position.xyz;
+        vec3 p1 = particlesIn[j].position.xyz;
+        
+        // Velocity Calculation
+        particlesOut[i].velocity.xyz += Gravity(p0, p1, m0, m1) * ubo.dt;
 
-    Particle particleIn = particlesIn[index];
+        if (length(particlesOut[i].velocity) > c/2)
+        {// Sets the Velocity Maximum to the Speed of Light (divided by two bc ITS TOO FAST)
+            normalize(particlesOut[i].velocity);
+            particlesOut[i].velocity *= c/2;
+        }
 
-    particlesOut[index].position = particleIn.position; + particleIn.velocity * ubo.dt;
-    particlesOut[index].velocity = particleIn.velocity;
+        particlesOut[i].position.xyz += particlesOut[i].velocity.xyz * ubo.dt;
+        //particlesOut[i].velocity = particlesIn[i].velocity;
+
+        // Flip movement at window border
+        if ((particlesOut[i].position.x <= -1.0) || (particlesOut[i].position.x >= 1.0)) {
+            particlesOut[i].velocity.x = -particlesOut[i].velocity.x;
+        }
+        if ((particlesOut[i].position.y <= -1.0) || (particlesOut[i].position.y >= 1.0)) {
+            particlesOut[i].velocity.y = -particlesOut[i].velocity.y;
+        }
+        if ((particlesOut[i].position.z <= -1.0) || (particlesOut[i].position.z >= 1.0)) {
+            particlesOut[i].velocity.z = -particlesOut[i].velocity.z;
+        }
+    }   
 }

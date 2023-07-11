@@ -3,6 +3,7 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -53,12 +54,12 @@ struct Particle : Point {
 */
 
 struct UBO {
-    modelMatrix model;
-    camMatrix camera;
     float dt = 1.f;
-    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg = 45.f, float nearPlane = 0.1f, float farPlane = 10.f) {
+    alignas(16) glm::mat4 model = glm::mat4(1.f);
+    camMatrix camera;
+    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {
         std::jthread t1( [this] 
-            { model.update(); }
+            { modelUpdate(); }
         );
         std::jthread t2( [this, window, extent, FOVdeg, nearPlane, farPlane] 
             { camera.update(window, extent, FOVdeg, nearPlane, farPlane); }
@@ -68,12 +69,19 @@ struct UBO {
         );
     }
 private:
-    float lastFrameTime = 0.0f;
+    double lastFrameTime = 0.0;
     double lastTime = 0.0;
+    void modelUpdate() {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    }
     void deltaTime() {
         double currentTime = glfwGetTime();
-        lastFrameTime = (currentTime - lastTime) * 1000.0;
-        dt = lastFrameTime * 2.f;
+        lastFrameTime = (currentTime - lastTime);
+        dt = lastFrameTime;
         lastTime = currentTime;
     }
 };
@@ -168,7 +176,7 @@ struct VkGraphicsPipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> {
         //      and seperate the member variable 'model' from the pipeline
         vkCreatePipeline(shaders);
     }
-    void renderTest(VkCommandBuffer& commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
+    void render(VkCommandBuffer& commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
         bind(commandBuffer, setCount, sets);
         model.draw(commandBuffer);
     }
@@ -288,59 +296,9 @@ struct VkTestPipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> {
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
         //      and seperate the member variable 'model' from the pipeline
         vkCreatePipeline(shaders);
-    }
-    
-    void renderCommand(VkCommandBuffer& commandBuffer, VkFramebuffer& frameBuffer, VkBuffer& buffer, uint32_t setCount, VkDescriptorSet* sets) {
-        VkCommandBufferBeginInfo beginInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-
-        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("failed to begin recording command buffer!");
-        }
-
-        std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        VkRenderPassBeginInfo renderPassInfo
-        { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
-        renderPassInfo.renderPass = VkSwapChain::renderPass;
-        renderPassInfo.framebuffer = frameBuffer;
-        renderPassInfo.renderArea.offset = { 0, 0 };
-        renderPassInfo.renderArea.extent = VkSwapChain::Extent;
-        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        renderPassInfo.pClearValues = clearValues.data();
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = (float)VkSwapChain::Extent.width;
-        viewport.height = (float)VkSwapChain::Extent.height;
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-
-        VkRect2D scissor{};
-        scissor.offset = { 0, 0 };
-        scissor.extent = VkSwapChain::Extent;
-
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
+    }    
+    void render(VkCommandBuffer& commandBuffer, VkBuffer& buffer, uint32_t setCount, VkDescriptorSet* sets) {
         bind(commandBuffer, setCount, sets);
-        VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, offsets); // &SSBO.mBuffer
-        vkCmdDraw(commandBuffer, PARTICLE_COUNT, 1, 0, 0);
-
-        vkCmdEndRenderPass(commandBuffer);
-        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to record command buffer!");
-        }
-    }
-    
-    void renderTest(VkCommandBuffer& commandBuffer, VkBuffer& buffer, uint32_t setCount, VkDescriptorSet* sets) {
-        vkCmdBindDescriptorSets(commandBuffer, bindPoint, mLayout, 0, setCount, sets, 0, nullptr);
-        vkCmdBindPipeline(commandBuffer, bindPoint, mPipeline);
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, offsets); // &SSBO.mBuffer
         vkCmdDraw(commandBuffer, PARTICLE_COUNT, 1, 0, 0);
@@ -398,16 +356,6 @@ private:
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
 
-        /*
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0;
-        pipelineLayoutInfo.pSetLayouts = nullptr;
-
-        if (vkCreatePipelineLayout(VkGPU::device, &pipelineLayoutInfo, nullptr, &mLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create pipeline layout!");
-        }
-        */
         VkGraphicsPipelineCreateInfo pipelineInfo
         { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
@@ -431,9 +379,7 @@ private:
     }
 };
 
-
 struct VkComputePipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_COMPUTE> {
-    VkBuffer placeholderBuffer;
     VkComputePipeline(std::vector<VkDescriptor*>& descriptors, VkPipelineShaderStageCreateInfo& computeStage)
         : VkPipelineBase(descriptors)
     {
@@ -452,7 +398,7 @@ struct VkComputePipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_COMPUTE> {
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mLayout, 0, setCount, sets, 0, nullptr);
 
-        vkCmdDispatch(commandBuffer, PARTICLE_COUNT / 256, 1, 1);
+        vkCmdDispatch(commandBuffer, PARTICLE_COUNT / (100), PARTICLE_COUNT / (100), PARTICLE_COUNT / (100));
 
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record compute command buffer!");
@@ -468,13 +414,6 @@ private:
         if (vkCreateComputePipelines(VkGPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &mPipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create compute pipeline!");
         }
-    }
-    
-    void draw(VkCommandBuffer& commandBuffer, uint32_t imageIndex) {
-        // Vertex binding (objects to draw) and draw method - bind SSBO data, draw indexed to PARTICLE_COUNT
-        VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &placeholderBuffer, offsets); // &SSBO.mBuffer
-        vkCmdDraw(commandBuffer, PARTICLE_COUNT, 1, 0, 0);
     }
 };
 

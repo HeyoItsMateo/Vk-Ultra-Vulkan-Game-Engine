@@ -9,7 +9,7 @@ VkGraphicsEngine app(window);
 UBO uniforms;
 SSBO shaderStorage;
 
-VkUniformBuffer<UBO> ubo(uniforms, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_COMPUTE_BIT);
+VkUniformBuffer<UBO> ubo(uniforms, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 VkStorageBuffer ssbo(shaderStorage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
 
 VkTexture planks("textures/planks.png");
@@ -35,40 +35,25 @@ VkTestPipeline<Particle> ptclPipeline(descriptors, compShaders);
 
 VkComputePipeline testPpln(descriptors, compShader.stageInfo);
 
+typedef std::array<float, 4> vec4;
 
-struct s_doer {
-    void operator()(int n) {
-        std::cout << n << "\n";
-    };
-    //std::function<void()> func;
-    template<typename F>
-    friend void operator<<(s_doer&&, F&& func) {
-        std::cout << "test" << std::endl;
-        func();
-        std::cout << "test" << std::endl;
-    }
+alignas(16) vec4 testVec4{1.f,1.f,1.f,1.f};
+
+glm::mat4 testMat4 = glm::mat4(1.f);
+
+void printMsg(const char* message, size_t value) {
+    std::cout << message << " " << value << "\n";
 };
 
-struct s_informer {
-    s_informer(int n) {
-        info = n;
-    }
-    void inform(int n) {
-        std::cout << n << "\n";
-    }
-private:
-    int info;
-    template<typename F>
-    friend void operator<<(s_doer&&, F&& func);
-};
+VkPhysicalDeviceProperties properties;
 
-
-
-s_informer informer(4);
 
 int main() {
-    int n = 2;
-    s_doer{} << [n] {informer.inform(n); };
+    vkGetPhysicalDeviceProperties(VkGPU::physicalDevice, &properties);
+
+    printMsg("maxWorkgroupSize is:", *properties.limits.maxComputeWorkGroupSize);
+    printMsg("maxWorkGroupInvocations is:", properties.limits.maxComputeWorkGroupInvocations);
+    printMsg("maxWorkGroupCount is:", *properties.limits.maxComputeWorkGroupCount);
 
     try {
         app.run(pipeline, ptclPipeline, testPpln, ssbo, uniforms, ubo, 3, sets);

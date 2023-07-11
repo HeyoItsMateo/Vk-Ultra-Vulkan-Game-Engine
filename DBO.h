@@ -211,9 +211,6 @@ private:
 
 template<typename T>
 struct VkUniformBuffer : VkCPU, VkDescriptor {
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-
     std::vector<VkBuffer> Buffer;
     std::vector<VkDeviceMemory> Memory;
 
@@ -248,6 +245,8 @@ struct VkUniformBuffer : VkCPU, VkDescriptor {
     }
 private:
     void* data;
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
     void createDataBuffer(T& ubo) {
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
@@ -263,7 +262,7 @@ private:
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(Buffer[i], Memory[i], bufferSize,
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
             copyBuffer(stagingBuffer, Buffer[i], bufferSize);

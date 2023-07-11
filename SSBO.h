@@ -1,12 +1,12 @@
 #ifndef hSSBO
 #define hSSBO
 
-const uint32_t PARTICLE_COUNT = 8192;
+const uint32_t PARTICLE_COUNT = 6000;
 
 struct Particle {
-    glm::vec3 position;
-    glm::vec3 color;
-    glm::vec3 velocity;
+    glm::vec4 position;
+    glm::vec4 color;
+    glm::vec4 velocity;
 
     const static VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
     static VkVertexInputBindingDescription vkCreateBindings() {
@@ -23,12 +23,12 @@ struct Particle {
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         attributeDescriptions[0].offset = offsetof(Particle, position);
 
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         attributeDescriptions[1].offset = offsetof(Particle, color);
 
         return attributeDescriptions;
@@ -49,29 +49,21 @@ struct Particle {
 
 struct SSBO {
     std::vector<Particle> particles;
-    SSBO() {
-        populate(particles, VkSwapChain::Extent.width, VkSwapChain::Extent.height);
-    }
-private:
-    void populate(std::vector<Particle>& particles, int width, int height) {
+    SSBO(int PARTICLE_COUNT = PARTICLE_COUNT) {
         particles.resize(PARTICLE_COUNT);
-        std::default_random_engine rndEngine((unsigned)time(nullptr));
-        std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+        std::random_device rand;
+        std::mt19937_64 rndEngine(rand());
+        for (auto& particle : particles) {
+            std::uniform_real_distribution<float> rndDist(-0.9f, 0.9f);
+            std::uniform_real_distribution<float> rndColor(0.f, 1.0f);
 
-        std::for_each(std::execution::par,
-            particles.begin(), particles.end(),
-            [&](Particle& particle)
-            {// Populate particle system
-                float r = 0.25f * sqrt(rndDist(rndEngine));
-                float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
-                float x = r * cos(theta) * height / width;
-                float y = r * sin(theta);
-                float z = r * cos(theta) / sin(theta);
-                particle.position = glm::vec3(x, y, 0);
-                particle.velocity = glm::normalize(glm::vec3(x, y, z)) * 0.25f;
-                particle.color = glm::vec3(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine));
-            });
-
+            float x = rndDist(rndEngine);
+            float y = rndDist(rndEngine);
+            float z = rndDist(rndEngine);
+            particle.position = glm::vec4(x, y, z, 0.f);
+            particle.velocity = glm::vec4(0, 0, 0, 0.f);
+            particle.color = glm::vec4(rndColor(rndEngine), rndColor(rndEngine), rndColor(rndEngine), 1.f);
+        }
     }
 };
 
@@ -92,10 +84,6 @@ struct VkStorageBuffer : VkCPU, VkDescriptor {
         testSets();
     }
     ~VkStorageBuffer() {
-        vkUnmapMemory(VkGPU::device, stagingBufferMemory);
-        vkDestroyBuffer(VkGPU::device, stagingBuffer, nullptr);
-        vkFreeMemory(VkGPU::device, stagingBufferMemory, nullptr);
-
         std::for_each(std::execution::par, Buffer.begin(), Buffer.end(),
             [&](VkBuffer buffer) { vkDestroyBuffer(VkGPU::device, buffer, nullptr); });
 
@@ -104,12 +92,6 @@ struct VkStorageBuffer : VkCPU, VkDescriptor {
 
         vkDestroyDescriptorPool(VkGPU::device, Pool, nullptr);
         vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
-    }
-
-    void update(uint32_t currentImage, void* contents) {
-        memcpy(data, contents, (size_t)bufferSize);
-
-        copyBuffer(stagingBuffer, Buffer[currentImage]);
     }
     void testLayout() {
         std::vector<VkDescriptorSetLayoutBinding> layoutBindings(2);
@@ -150,10 +132,11 @@ struct VkStorageBuffer : VkCPU, VkDescriptor {
         }
     }
 private:
-    void* data;
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
     void createDataBuffer(SSBO& ssbo) {
+        void* data;
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -162,10 +145,11 @@ private:
         createBuffer(stagingBuffer, stagingBufferMemory,
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
+        
         vkMapMemory(VkGPU::device, stagingBufferMemory, 0, bufferSize, 0, &data);
         memcpy(data, ssbo.particles.data(), (size_t)bufferSize);
-
+        vkUnmapMemory(VkGPU::device, stagingBufferMemory);
+        
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(Buffer[i], Memory[i],
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -173,7 +157,9 @@ private:
 
             copyBuffer(stagingBuffer, Buffer[i]);
         }
-        
+
+        vkDestroyBuffer(VkGPU::device, stagingBuffer, nullptr);
+        vkFreeMemory(VkGPU::device, stagingBufferMemory, nullptr);
     }
     void createBuffer(VkBuffer& buffer, VkDeviceMemory& memory, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
         VkBufferCreateInfo bufferInfo
@@ -227,22 +213,6 @@ private:
         //std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT*2);
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             std::vector<VkWriteDescriptorSet> descriptorWrites(2);
-
-            /*
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = Buffer[i];
-            bufferInfo.offset = 0;
-            bufferInfo.range = bufferSize;
-
-            VkWriteDescriptorSet writeUBO = VkUtils::writeDescriptor(0, type, Sets[i]);
-            writeUBO.pBufferInfo = &bufferInfo;
-            descriptorWrites[i] = writeUBO;
-
-            VkDescriptorBufferInfo uniformBufferInfo{};
-            uniformBufferInfo.buffer = uniformBuffers[i];
-            uniformBufferInfo.offset = 0;
-            //uniformBufferInfo.range = sizeof(UniformBufferObject);
-            */
 
             VkDescriptorBufferInfo lastFrameBufferInfo{};
             lastFrameBufferInfo.buffer = Buffer[(i - 1) % MAX_FRAMES_IN_FLIGHT];
@@ -315,9 +285,5 @@ private:
         }
     }
 };
-
-
-
-
 
 #endif

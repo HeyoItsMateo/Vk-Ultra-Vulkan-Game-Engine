@@ -1,28 +1,25 @@
 #version 450
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inColor;
+layout(location = 0) in vec4 inPosition;
+layout(location = 1) in vec4 inColor;
 
 layout(location = 0) out vec4 fragColor;
 
 struct camera{
     mat4 view;
     mat4 proj;
-};
-
-struct modelMatrix {
-    mat4 model;
+    vec3 position;
 };
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
-    modelMatrix model;
-    camera cam;
     float dt;
+    mat4 model;
+    camera cam;  
 } ubo;
 
-
 void main() {
-    gl_PointSize = 14.0;
-    gl_Position = ubo.cam.proj * ubo.cam.view * vec4(inPosition, 1.0);
-    fragColor = vec4(inColor, 1.f);
+    float testDist = distance(ubo.cam.position, inPosition.xyz);
+    gl_PointSize = 2 / (testDist*testDist + 0.01f);
+    gl_Position = ubo.cam.proj * ubo.cam.view * vec4(inPosition.xyz, 1.0f);
+    fragColor = vec4(inColor.rgb, 1.f);
 }

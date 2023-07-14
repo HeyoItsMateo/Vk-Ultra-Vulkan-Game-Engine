@@ -1,6 +1,10 @@
 #ifndef hHelperFunctions
 #define hHelperFunctions
 
+template<auto mVar>
+auto getMember(auto& obj) {
+    return obj.*mVar;
+}
 
 template<typename T> struct member;
 

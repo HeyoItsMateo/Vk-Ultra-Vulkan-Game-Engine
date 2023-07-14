@@ -4,7 +4,7 @@
 #include <functional>
 
 VkWindow window("Vulkan");
-VkGraphicsEngine app(window);
+VkGraphicsEngine app;
 
 UBO uniforms;
 SSBO shaderStorage;
@@ -35,14 +35,13 @@ VkTestPipeline<Particle> ptclPipeline(descriptors, compShaders);
 
 VkComputePipeline testPpln(descriptors, compShader.stageInfo);
 
-typedef std::array<float, 4> vec4;
-
-alignas(16) vec4 testVec4{1.f,1.f,1.f,1.f};
-
-glm::mat4 testMat4 = glm::mat4(1.f);
+//TODO: Learn discrete differential geometry
+//TODO: Implement waves~
+//TODO: Optimize the swapchain and rendering process
+//TODO: Optimize a fuckload of stuff with shader caching, pipeline caching, parallelization, etc.
 
 void printMsg(const char* message, size_t value) {
-    std::cout << message << " " << value << "\n";
+    std::cout << message << " " << value << std::endl;
 };
 
 VkPhysicalDeviceProperties properties;

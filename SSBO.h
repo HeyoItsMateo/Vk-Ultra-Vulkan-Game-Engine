@@ -1,7 +1,7 @@
 #ifndef hSSBO
 #define hSSBO
 
-const uint32_t PARTICLE_COUNT = 6000;
+const uint32_t PARTICLE_COUNT = 1000;
 
 struct Particle {
     glm::vec4 position;
@@ -53,21 +53,23 @@ struct SSBO {
         particles.resize(PARTICLE_COUNT);
         std::random_device rand;
         std::mt19937_64 rndEngine(rand());
-        for (auto& particle : particles) {
-            std::uniform_real_distribution<float> rndDist(-0.9f, 0.9f);
-            std::uniform_real_distribution<float> rndColor(0.f, 1.0f);
-
-            float x = rndDist(rndEngine);
-            float y = rndDist(rndEngine);
-            float z = rndDist(rndEngine);
-            particle.position = glm::vec4(x, y, z, 0.f);
-            particle.velocity = glm::vec4(0, 0, 0, 0.f);
-            particle.color = glm::vec4(rndColor(rndEngine), rndColor(rndEngine), rndColor(rndEngine), 1.f);
-        }
+        std::for_each(std::execution::par, particles.begin(), particles.end(),
+            [&](Particle& particle) 
+            {
+                std::uniform_real_distribution<float> rndDist(-0.9f, 0.9f);
+                std::uniform_real_distribution<float> rndColor(0.f, 1.0f);
+                
+                float x = rndDist(rndEngine);
+                float y = rndDist(rndEngine);
+                float z = rndDist(rndEngine);
+                particle.position = glm::vec4(x, y, z, 0.f);
+                particle.velocity = glm::vec4(0, 0, 0, 0.f);
+                particle.color = glm::vec4(rndColor(rndEngine), rndColor(rndEngine), rndColor(rndEngine), 1.f);
+            });
     }
 };
 
-struct VkStorageBuffer : VkCPU, VkDescriptor {
+struct VkStorageBuffer : VkCommand, VkDescriptor {
     std::vector<VkBuffer> Buffer;
     std::vector<VkDeviceMemory> Memory;
 
@@ -76,12 +78,9 @@ struct VkStorageBuffer : VkCPU, VkDescriptor {
     VkStorageBuffer(SSBO& ssbo, VkDescriptorType type, VkShaderStageFlags flag) {
         createDataBuffer(ssbo);
         
-        //createDescriptorSetLayout(type, flag);
-        testLayout();
-        //createDescriptorPool(type);
-        testPool();
-        //createDescriptorSets(type);
-        testSets();
+        createDescriptorSetLayout();
+        createDescriptorPool();
+        createDescriptorSets();
     }
     ~VkStorageBuffer() {
         std::for_each(std::execution::par, Buffer.begin(), Buffer.end(),
@@ -93,45 +92,7 @@ struct VkStorageBuffer : VkCPU, VkDescriptor {
         vkDestroyDescriptorPool(VkGPU::device, Pool, nullptr);
         vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
     }
-    void testLayout() {
-        std::vector<VkDescriptorSetLayoutBinding> layoutBindings(2);
-        layoutBindings[0].binding = 0;
-        layoutBindings[0].descriptorCount = 1;
-        layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        layoutBindings[0].pImmutableSamplers = nullptr;
-        layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-        layoutBindings[1].binding = 1;
-        layoutBindings[1].descriptorCount = 1;
-        layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        layoutBindings[1].pImmutableSamplers = nullptr;
-        layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo
-        { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        layoutInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
-        layoutInfo.pBindings = layoutBindings.data();
-
-        if (vkCreateDescriptorSetLayout(VkGPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create compute descriptor set layout!");
-        }
-    }
-    void testPool() {
-        VkDescriptorPoolSize poolSizes{};
-        poolSizes.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        poolSizes.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 2;
-
-        VkDescriptorPoolCreateInfo poolInfo
-        { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSizes;
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-    }
-private:
+protected:
     void createDataBuffer(SSBO& ssbo) {
         void* data;
         VkBuffer stagingBuffer;
@@ -187,58 +148,54 @@ private:
         vkBindBufferMemory(VkGPU::device, buffer, memory, 0);
     }
     void copyBuffer(VkBuffer& srcBuffer, VkBuffer& dstBuffer) {
-        VkCommandBuffer commandBuffer;
-        beginSingleTimeCommands(commandBuffer);
+        beginCommand();
 
         VkBufferCopy copyRegion{};
         copyRegion.size = bufferSize;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+        vkCmdCopyBuffer(VkCommand::buffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-        endSingleTimeCommands(commandBuffer);
+        endCommand();
     }
+private:
+    void createDescriptorSetLayout() {
+        std::vector<VkDescriptorSetLayoutBinding> layoutBindings(2);
+        layoutBindings[0].binding = 0;
+        layoutBindings[0].descriptorCount = 1;
+        layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        layoutBindings[0].pImmutableSamplers = nullptr;
+        layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-    void createDescriptorSets(VkDescriptorType type) {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = Pool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
+        layoutBindings[1].binding = 1;
+        layoutBindings[1].descriptorCount = 1;
+        layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        layoutBindings[1].pImmutableSamplers = nullptr;
+        layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-        Sets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(VkGPU::device, &allocInfo, Sets.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate descriptor sets!");
+        VkDescriptorSetLayoutCreateInfo layoutInfo
+        { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+        layoutInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
+        layoutInfo.pBindings = layoutBindings.data();
+
+        if (vkCreateDescriptorSetLayout(VkGPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute descriptor set layout!");
         }
-
-        //std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT*2);
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            std::vector<VkWriteDescriptorSet> descriptorWrites(2);
-
-            VkDescriptorBufferInfo lastFrameBufferInfo{};
-            lastFrameBufferInfo.buffer = Buffer[(i - 1) % MAX_FRAMES_IN_FLIGHT];
-            lastFrameBufferInfo.offset = 0;
-            lastFrameBufferInfo.range = bufferSize;
-
-            VkWriteDescriptorSet lastFrameSSBO = VkUtils::writeDescriptor(0, type, Sets[i]);
-            lastFrameSSBO.pBufferInfo = &lastFrameBufferInfo;
-
-            VkDescriptorBufferInfo crntFrameBufferInfo{};
-            crntFrameBufferInfo.buffer = Buffer[i];
-            crntFrameBufferInfo.offset = 0;
-            crntFrameBufferInfo.range = bufferSize;
-
-            VkWriteDescriptorSet crntFrameSSBO = VkUtils::writeDescriptor(1, type, Sets[i]);
-            crntFrameSSBO.pBufferInfo = &crntFrameBufferInfo;
-
-            descriptorWrites[0] = lastFrameSSBO;
-            descriptorWrites[1] = crntFrameSSBO;
-
-            vkUpdateDescriptorSets(VkGPU::device, 2, descriptorWrites.data(), 0, nullptr);
-        }
-        //vkUpdateDescriptorSets(VkGPU::device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
+    void createDescriptorPool() {
+        VkDescriptorPoolSize poolSizes{};
+        poolSizes.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSizes.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 2;
 
-    void testSets() {
+        VkDescriptorPoolCreateInfo poolInfo
+        { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSizes;
+        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+        if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor pool!");
+        }
+    }
+    void createDescriptorSets() {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
         VkDescriptorSetAllocateInfo allocInfo
         { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };

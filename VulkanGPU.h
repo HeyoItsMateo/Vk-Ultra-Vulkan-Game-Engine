@@ -7,7 +7,7 @@
 
 const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-const int MAX_FRAMES_IN_FLIGHT = 1;
+const int MAX_FRAMES_IN_FLIGHT = 2;
 
 struct VkGPU : VulkanAPI {
     inline static VkDevice device;
@@ -25,7 +25,7 @@ struct VkGPU : VulkanAPI {
     inline static VkQueue computeQueue;
     inline static VkQueue presentQueue;
 
-    VkGPU(VkWindow& window) : VulkanAPI(window) {
+    VkGPU() {
         pickPhysicalDevice();
         createLogicalDevice();
     }
@@ -212,96 +212,29 @@ private:
     }
 };
 
-struct VkCPU {
-    VkCommandPool commandPool;
-    std::vector<VkCommandBuffer> commandBuffers;
-    std::vector<VkCommandBuffer> computeBuffers;
-    VkCPU() {
-        createCommandPool();
-        createCommandBuffers(commandBuffers);
-        createCommandBuffers(computeBuffers);
-    }
-    ~VkCPU() {
-        vkDestroyCommandPool(VkGPU::device, commandPool, nullptr);
-    }
-    //TODO: Parallelize single time commands
-    void beginSingleTimeCommands(VkCommandBuffer& commandBuffer, uint32_t bufferCount = 1) {
-        VkCommandBufferAllocateInfo allocInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = commandPool;
-        allocInfo.commandBufferCount = bufferCount; //TODO: find out how to allocate two command buffers for parallel writing/submission
-
-        vkAllocateCommandBuffers(VkGPU::device, &allocInfo, &commandBuffer);
-
-        VkCommandBufferBeginInfo beginInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    }
-    void endSingleTimeCommands(VkCommandBuffer& commandBuffer, uint32_t bufferCount = 1) {
-        vkEndCommandBuffer(commandBuffer);
-
-        VkSubmitInfo submitInfo
-        { VK_STRUCTURE_TYPE_SUBMIT_INFO };
-        submitInfo.commandBufferCount = bufferCount; //TODO: find out how to allocate two or more command buffers
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-        vkQueueSubmit(VkGPU::graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(VkGPU::graphicsQueue);
-
-        vkFreeCommandBuffers(VkGPU::device, commandPool, 1, &commandBuffer);
-    }
-private:
-    void createCommandPool() {
-        VkCommandPoolCreateInfo poolInfo
-        { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = VkGPU::graphicsFamily.value();
-
-        if (vkCreateCommandPool(VkGPU::device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create graphics command pool!");
-        }
-    }
-    void createCommandBuffers(std::vector<VkCommandBuffer>& buffers) {
-        buffers.resize(MAX_FRAMES_IN_FLIGHT);
-
-        VkCommandBufferAllocateInfo allocInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t)buffers.size();
-
-        if (vkAllocateCommandBuffers(VkGPU::device, &allocInfo, buffers.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate command buffers!");
-        }
-    }
-};
-
-struct VkColorImage {
+struct VulkanImage {
     VkImage Image;
     VkImageView ImageView;
     VkDeviceMemory ImageMemory;
 
+    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
+    VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    ~VulkanImage() {
+        std::jthread t0(vkDestroyImageView, VkGPU::device, ImageView, nullptr);
+        std::jthread t1(vkDestroyImage, VkGPU::device, Image, nullptr);
+        vkFreeMemory(VkGPU::device, ImageMemory, nullptr);
+    }
+};
+
+struct VkColorImage : VulkanImage {
     VkImageAspectFlagBits aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
-    VkFormat format = VK_FORMAT_B8G8R8A8_SRGB;
-
-    VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkFormat format = VK_FORMAT_B8G8R8A8_SRGB;    
 };
-struct VkDepthImage {
-    VkImage Image;
-    VkImageView ImageView;
-    VkDeviceMemory ImageMemory;
-    
+struct VkDepthImage : VulkanImage {
     VkImageAspectFlagBits aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
     VkImageUsageFlags usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
     VkFormat format = VK_FORMAT_D32_SFLOAT;
-
-    VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 };
 
 struct VkSwapChain : VkGPU {
@@ -312,35 +245,33 @@ struct VkSwapChain : VkGPU {
 
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
+    std::vector<VkFramebuffer> framebuffers;
     uint32_t mipLevels = 1;
 
     VkColorImage color;
     VkDepthImage depth;
 
-    
-    VkSwapChain(VkWindow& window) : VkGPU(window) {
-        createSwapChain();
-        createImageViews();
+    VkSwapChain() {
+        createSwapChain(); // Cannot parallelize
+        std::thread tImageViews([this] { createImageViews(); });
 
-        createImageResource<VkColorImage>(color);
-        createImageResource<VkDepthImage>(depth);
+        std::thread tColorImage([this] { createImageResource<VkColorImage>(color); });
+        std::thread tDepthImage([this] { createImageResource<VkDepthImage>(depth); });
 
-        createRenderPass();
+        std::thread tRenderPass([this] { createRenderPass(); });
+
+        tImageViews.join(); tColorImage.join(); tDepthImage.join(); tRenderPass.join();
         createFramebuffers();
     }
     ~VkSwapChain() {
-        for (auto framebuffer : swapChainFramebuffers) {
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
-        }
+        std::for_each(std::execution::par, framebuffers.begin(), framebuffers.end(),
+            [&](const auto& framebuffer) { vkDestroyFramebuffer(device, framebuffer, nullptr); });
 
-        vkDestroyRenderPass(device, renderPass, nullptr);
-        destroyImageResource<VkColorImage>(color);
-        destroyImageResource<VkDepthImage>(depth);
+        std::jthread tRenderPass([this] { vkDestroyRenderPass(device, renderPass, nullptr); });
 
-        for (auto imageView : swapChainImageViews) {
-            vkDestroyImageView(device, imageView, nullptr);
-        }
+        std::for_each(std::execution::par, swapChainImageViews.begin(), swapChainImageViews.end(),
+            [&](const auto& imageView) { vkDestroyImageView(device, imageView, nullptr); });
+
         vkDestroySwapchainKHR(device, swapChainKHR, nullptr);
     }
 
@@ -355,8 +286,8 @@ struct VkSwapChain : VkGPU {
             imageCount = capabilities.maxImageCount;
         }
 
-        VkSwapchainCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        VkSwapchainCreateInfoKHR createInfo
+        { VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
         createInfo.surface = surface;
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
@@ -400,34 +331,37 @@ struct VkSwapChain : VkGPU {
     void recreateSwapChain() {
         int width = 0, height = 0;
         while (width == 0 || height == 0) {
-            glfwGetFramebufferSize(window, &width, &height);
+            glfwGetFramebufferSize(VkWindow::window, &width, &height);
             glfwWaitEvents();
         }
         vkDeviceWaitIdle(device);
+
         cleanupSwapChain();
 
         createSwapChain();
-        createImageViews();
 
-        createImageResource<VkColorImage>(color);
-        createImageResource<VkDepthImage>(depth);
+        std::thread tImageViews([this] { createImageViews(); });
+        std::thread tColorImage([this] { createImageResource<VkColorImage>(color); });
+        std::thread tDepthImage([this] { createImageResource<VkDepthImage>(depth); });
+        tImageViews.join(); tColorImage.join(); tDepthImage.join();
+
         createFramebuffers();
     }
     void cleanupSwapChain() {
-        for (auto framebuffer : swapChainFramebuffers) {
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
-        }
+        std::for_each(std::execution::par, framebuffers.begin(), framebuffers.end(),
+            [&](const auto& framebuffer) { vkDestroyFramebuffer(device, framebuffer, nullptr); });
 
-        destroyImageResource<VkColorImage>(color);
-        destroyImageResource<VkDepthImage>(depth);
-        for (auto imageView : swapChainImageViews) {
-            vkDestroyImageView(device, imageView, nullptr);
-        }
+        std::jthread tColorImage([this] { destroyImageResource<VkColorImage>(color); });
+        std::jthread tDepthImage([this] { destroyImageResource<VkDepthImage>(depth); });
+
+        std::for_each(std::execution::par, swapChainImageViews.begin(), swapChainImageViews.end(),
+            [&](const auto& imageView) { vkDestroyImageView(device, imageView, nullptr); });
+
         vkDestroySwapchainKHR(device, swapChainKHR, nullptr);
     }
 
     template<typename T>
-    void createImageResource(T& resource) {
+    constexpr void createImageResource(T& resource) {
         createImage(resource.format, resource.tiling, resource.usage, resource.properties, resource.Image, resource.ImageMemory);
         createImageView(resource.Image, resource.ImageView, resource.format, resource.aspect, 1);
     }
@@ -439,7 +373,7 @@ struct VkSwapChain : VkGPU {
     }
  
     void createFramebuffers() {
-        swapChainFramebuffers.resize(swapChainImageViews.size());
+        framebuffers.resize(swapChainImageViews.size());
 
         for (size_t i = 0; i < swapChainImageViews.size(); i++) {
             std::array<VkImageView, 3> attachments = {
@@ -448,8 +382,8 @@ struct VkSwapChain : VkGPU {
             swapChainImageViews[i]
             };
 
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            VkFramebufferCreateInfo framebufferInfo
+            { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
             framebufferInfo.renderPass = renderPass;
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
@@ -457,7 +391,7 @@ struct VkSwapChain : VkGPU {
             framebufferInfo.height = Extent.height;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }
@@ -487,7 +421,7 @@ private:
         }
         else {
             int width, height;
-            glfwGetFramebufferSize(window, &width, &height);
+            glfwGetFramebufferSize(VkWindow::window, &width, &height);
 
             VkExtent2D actualExtent = {
                 static_cast<uint32_t>(width),
@@ -500,6 +434,7 @@ private:
     }
 
     void createRenderPass() {
+        // Renderpass Attachments
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = color.format;
         colorAttachment.samples = msaaSamples;
@@ -511,7 +446,6 @@ private:
         colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         VkAttachmentDescription depthAttachment{};
-
         depthAttachment.format = depth.format;
         depthAttachment.samples = msaaSamples;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -531,18 +465,18 @@ private:
         colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-        VkAttachmentReference colorAttachmentRef{};
-        colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference colorAttachmentRef
+        { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 
-        VkAttachmentReference depthAttachmentRef{};
-        depthAttachmentRef.attachment = 1;
-        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference depthAttachmentRef
+        { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 
-        VkAttachmentReference colorAttachmentResolveRef{};
-        colorAttachmentResolveRef.attachment = 2;
-        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference colorAttachmentResolveRef
+        { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 
+        std::array<VkAttachmentDescription, 3> attachments = { colorAttachment, depthAttachment, colorAttachmentResolve };
+
+        // Render Subpasses and Subpass Dependencies
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
@@ -557,10 +491,10 @@ private:
         dependency.srcAccessMask = 0;
         dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-        std::array<VkAttachmentDescription, 3> attachments = { colorAttachment, depthAttachment, colorAttachmentResolve };
-        VkRenderPassCreateInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        
+        // Renderpass Creation
+        VkRenderPassCreateInfo renderPassInfo
+        { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
         renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
         renderPassInfo.pAttachments = attachments.data();
         renderPassInfo.subpassCount = 1;
@@ -597,8 +531,8 @@ private:
     }
     
     void createImage(VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        VkImageCreateInfo imageInfo
+        { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
         imageInfo.extent.width = Extent.width;
         imageInfo.extent.height = Extent.height;
@@ -619,8 +553,8 @@ private:
         VkMemoryRequirements memRequirements;
         vkGetImageMemoryRequirements(device, image, &memRequirements);
 
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        VkMemoryAllocateInfo allocInfo
+        { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
@@ -631,11 +565,11 @@ private:
         vkBindImageMemory(device, image, imageMemory, 0);
     }
     void createImageView(VkImage& image, VkImageView& view, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) {
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        VkImageViewCreateInfo viewInfo
+        { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
         viewInfo.image = image;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = format;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.subresourceRange.aspectMask = aspectFlags;
         viewInfo.subresourceRange.baseMipLevel = 0;
         viewInfo.subresourceRange.levelCount = mipLevels;

@@ -13,17 +13,17 @@ struct camMatrix {
         view = glm::mat4(1.0f);
         proj = glm::mat4(1.0f);
     }
-    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg, float nearPlane, float farPlane)
+    void update(float FOVdeg, float nearPlane, float farPlane)
     {	// Initializes matrices since otherwise they will be the null matrix
         if (!glfwJoystickPresent(GLFW_JOYSTICK_1)) {
-            keyboard_Input(window, extent);
+            keyboard_Input();
         }
         else {
-            keyboard_Input(window, extent);
-            controller_Input(window);
+            keyboard_Input();
+            controller_Input();
         }
         view = glm::lookAt(position, position + Orientation, Up);
-        proj = glm::perspective(glm::radians(FOVdeg), (float)extent.width / extent.height, nearPlane, farPlane);
+        proj = glm::perspective(glm::radians(FOVdeg), (float)VkSwapChain::Extent.width / VkSwapChain::Extent.height, nearPlane, farPlane);
         proj[1][1] *= -1;
     }
 protected:
@@ -33,55 +33,55 @@ protected:
     float sensitivity = 1.75f;
 private:
     bool firstClick = true;
-    void keyboard_Input(GLFWwindow* window, VkExtent2D extent) {
-        if (glfwGetKey(window, GLFW_KEY_W))
+    void keyboard_Input() {
+        if (glfwGetKey(VkWindow::window, GLFW_KEY_W))
         {
             position += velocity * Orientation;
         }
 
-        if (glfwGetKey(window, GLFW_KEY_A))
+        if (glfwGetKey(VkWindow::window, GLFW_KEY_A))
         {
             position -= velocity * glm::normalize(glm::cross(Orientation, Up));
         }
 
-        if (glfwGetKey(window, GLFW_KEY_S))
+        if (glfwGetKey(VkWindow::window, GLFW_KEY_S))
         {
             position -= velocity * Orientation;
         }
 
-        if (glfwGetKey(window, GLFW_KEY_D))
+        if (glfwGetKey(VkWindow::window, GLFW_KEY_D))
         {
             position += velocity * glm::normalize(glm::cross(Orientation, Up));
         }
 
-        if (glfwGetKey(window, GLFW_KEY_SPACE))
+        if (glfwGetKey(VkWindow::window, GLFW_KEY_SPACE))
         {
             position += velocity * Up;
         }
 
-        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL))
+        if (glfwGetKey(VkWindow::window, GLFW_KEY_LEFT_CONTROL))
         {
             position -= velocity * Up;
         }
 
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
+        if (glfwGetKey(VkWindow::window, GLFW_KEY_LEFT_SHIFT))
         {
             velocity = 0.01f;
         }
 
-        else if (!glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
+        else if (!glfwGetKey(VkWindow::window, GLFW_KEY_LEFT_SHIFT))
         {
             velocity = 0.005f;
         }
 
         // Handles mouse inputs
-        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
+        if (glfwGetMouseButton(VkWindow::window, GLFW_MOUSE_BUTTON_RIGHT))
         {	// Hides mouse cursor
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            glfwSetInputMode(VkWindow::window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
             if (firstClick)
             {	// Prevents camera from jumping on the first click
-                glfwSetCursorPos(window, (extent.width / 2), (extent.height / 2));
+                glfwSetCursorPos(VkWindow::window, (VkSwapChain::Extent.width / 2), (VkSwapChain::Extent.height / 2));
                 firstClick = false;
             }
             // Stores the coordinates of the cursor
@@ -89,12 +89,12 @@ private:
             double mouseY;
 
             // Fetches the coordinates of the cursor
-            glfwGetCursorPos(window, &mouseX, &mouseY);
+            glfwGetCursorPos(VkWindow::window, &mouseX, &mouseY);
 
             // Normalizes and shifts the coordinates of the cursor such that they begin in the middle of the screen
             // and then "transforms" them into degrees 
-            float rotX = sensitivity * (float)(mouseY - (extent.height / 2)) / extent.height;
-            float rotY = sensitivity * (float)(mouseX - (extent.width / 2)) / extent.width;
+            float rotX = sensitivity * (float)(mouseY - (VkSwapChain::Extent.height / 2)) / VkSwapChain::Extent.height;
+            float rotY = sensitivity * (float)(mouseX - (VkSwapChain::Extent.width / 2)) / VkSwapChain::Extent.width;
 
             // Calculates upcoming vertical change in the Orientation
             glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotX), glm::normalize(glm::cross(Orientation, Up)));
@@ -108,16 +108,16 @@ private:
             Orientation = glm::rotate(Orientation, glm::radians(-rotY), Up);
 
             // Sets mouse cursor to the middle of the screen so that it doesn't end up roaming around
-            glfwSetCursorPos(window, (extent.width / 2), (extent.height / 2));
+            glfwSetCursorPos(VkWindow::window, (VkSwapChain::Extent.width / 2), (VkSwapChain::Extent.height / 2));
         }
-        else if (!glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
+        else if (!glfwGetMouseButton(VkWindow::window, GLFW_MOUSE_BUTTON_RIGHT))
         {	// Unhides cursor since camera is not looking around anymore
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetInputMode(VkWindow::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             // Makes sure the next time the camera looks around it doesn't jump
             firstClick = true;
         }
     }
-    void controller_Input(GLFWwindow* window)
+    void controller_Input()
     {
         // Button Mapping
         int buttonCount;

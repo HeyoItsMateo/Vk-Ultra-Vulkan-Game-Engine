@@ -17,6 +17,10 @@
 #include <random>
 
 #include "VulkanGPU.h"
+#include "VulkanCPU.h"
+
+#include "PhysX.h"
+
 #include "Camera.h"
 #include "Model.h"
 #include "DBO.h"
@@ -26,9 +30,11 @@
 #include "helperFunc.h"
 
 
+
+
 //typedef void(__stdcall* vkDestroyFunction)(VkDevice, void ,const VkAllocationCallbacks*);
 
-const std::vector<Vertex> vertices = {
+std::vector<Vertex> vertices = {
     {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
     {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
     {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
@@ -57,20 +63,18 @@ struct UBO {
     float dt = 1.f;
     alignas(16) glm::mat4 model = glm::mat4(1.f);
     camMatrix camera;
-    void update(GLFWwindow* window, VkExtent2D extent, float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {
+    void update(double lastTime, float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {
         std::jthread t1( [this] 
             { modelUpdate(); }
         );
-        std::jthread t2( [this, window, extent, FOVdeg, nearPlane, farPlane] 
-            { camera.update(window, extent, FOVdeg, nearPlane, farPlane); }
+        std::jthread t2( [this, FOVdeg, nearPlane, farPlane] 
+            { camera.update(FOVdeg, nearPlane, farPlane); }
         );
-        std::jthread t3([this]
-            { deltaTime(); }
+        std::jthread t3([this, lastTime]
+            { deltaTime(lastTime); }
         );
     }
 private:
-    double lastFrameTime = 0.0;
-    double lastTime = 0.0;
     void modelUpdate() {
         static auto startTime = std::chrono::high_resolution_clock::now();
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -78,11 +82,9 @@ private:
 
         model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     }
-    void deltaTime() {
+    void deltaTime(double lastTime) {
         double currentTime = glfwGetTime();
-        lastFrameTime = (currentTime - lastTime);
-        dt = lastFrameTime;
-        lastTime = currentTime;
+        dt = (currentTime - lastTime);
     }
 };
 
@@ -141,8 +143,8 @@ struct VkPipelineBase {
         vkLoadSetLayout(layout);
     }
     ~VkPipelineBase() {
-        vkDestroyPipeline(VkGPU::device, mPipeline, nullptr);
-        vkDestroyPipelineLayout(VkGPU::device, mLayout, nullptr);
+        std::jthread t0(vkDestroyPipeline, VkGPU::device, std::ref(mPipeline), nullptr);
+        std::jthread t1(vkDestroyPipelineLayout, VkGPU::device, std::ref(mLayout), nullptr);
     }
     void bind(VkCommandBuffer commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
         vkCmdBindDescriptorSets(commandBuffer, bindPoint, mLayout, 0, setCount, sets, 0, nullptr);
@@ -162,64 +164,16 @@ protected:
     }    
 };
 
-
-
 template<typename T>
 struct VkGraphicsPipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> {
-    //VkBufferObject model;
-    VkBufferMap model;
     VkGraphicsPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkShader*>& shaders)
-        : VkPipelineBase(descriptors), model(vertices, indices)
+        : VkPipelineBase(descriptors)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
         //      and seperate the member variable 'model' from the pipeline
         vkCreatePipeline(shaders);
     }
-    void render(VkCommandBuffer& commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
-        bind(commandBuffer, setCount, sets);
-        model.draw(commandBuffer);
-    }
-    /*
-    void renderCommand(VkCommandBuffer& commandBuffer, VkFramebuffer& frameBuffer, uint32_t setCount, VkDescriptorSet* sets) {
-        VkCommandBufferBeginInfo beginInfo
-        { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-
-        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("failed to begin recording command buffer!");
-        }
-
-        std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        VkRenderPassBeginInfo renderPassInfo = VkUtils::vkBeginRenderPass(frameBuffer, clearValues);
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = (float)VkSwapChain::Extent.width;
-        viewport.height = (float)VkSwapChain::Extent.height;
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-
-        VkRect2D scissor{};
-        scissor.offset = { 0, 0 };
-        scissor.extent = VkSwapChain::Extent;
-
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-        bind(commandBuffer, setCount, sets);
-        model.draw(commandBuffer);
-
-        vkCmdEndRenderPass(commandBuffer);
-        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to record command buffer!");
-        }
-    }
-    */
 private:
     void vkCreatePipeline(std::vector<VkShader*>& shaders) {
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages = packMembers<&VkShader::stageInfo>(shaders);
@@ -287,18 +241,15 @@ private:
 
 template<typename T>
 struct VkTestPipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> {
-    //VkBufferObject model;
-    VkBufferMap model;
     VkTestPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkShader*>& shaders)
-        : VkPipelineBase(descriptors), model(vertices, indices)
+        : VkPipelineBase(descriptors)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
         //      and seperate the member variable 'model' from the pipeline
         vkCreatePipeline(shaders);
     }    
-    void render(VkCommandBuffer& commandBuffer, VkBuffer& buffer, uint32_t setCount, VkDescriptorSet* sets) {
-        bind(commandBuffer, setCount, sets);
+    void draw(VkCommandBuffer& commandBuffer, VkBuffer& buffer) {
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, offsets); // &SSBO.mBuffer
         vkCmdDraw(commandBuffer, PARTICLE_COUNT, 1, 0, 0);
@@ -383,9 +334,9 @@ struct VkComputePipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_COMPUTE> {
     VkComputePipeline(std::vector<VkDescriptor*>& descriptors, VkPipelineShaderStageCreateInfo& computeStage)
         : VkPipelineBase(descriptors)
     {
-        //bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
         vkCreatePipeline(computeStage);
     }
+
     void computeCommand(VkCommandBuffer& commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
         VkCommandBufferBeginInfo beginInfo
         { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };

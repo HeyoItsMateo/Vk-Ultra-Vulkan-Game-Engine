@@ -154,15 +154,13 @@
     <None Include="shaders\point.vert" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="basicFunctions.h" />
     <ClInclude Include="Camera.h" />
-    <ClInclude Include="compShaderTest.h" />
     <ClInclude Include="DBO.h" />
     <ClInclude Include="helperFunc.h" />
+    <ClInclude Include="PhysX.h" />
     <ClInclude Include="SSBO.h" />
-    <ClInclude Include="testFile.h" />
-    <ClInclude Include="VkDescriptors.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="VulkanCPU.h" />
     <ClInclude Include="VulkanEngine.h" />
     <ClInclude Include="VulkanGPL.h" />
     <ClInclude Include="VulkanAPI.h" />

@@ -18,7 +18,8 @@ struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
     VkGraphicsEngine() : model(vertices,indices) {
 
     }
-    void run(VkGraphicsPipeline<Vertex>& pipeline, VkTestPipeline<Particle>& ptclPpln, VkComputePipeline& computePpln, VkStorageBuffer& ssbo, UBO& uniforms, VkUniformBuffer<UBO>& ubo, uint32_t setCount, VkDescriptorSet* sets) {
+    template<typename T>
+    inline void run(VkGraphicsPipeline<Vertex>& pipeline, VkTestPipeline<Particle>& ptclPpln, VkGraphicsPipeline<Octree>& octreePipe, Octree& octree, VkComputePipeline& computePpln, SSBO<T>& ssbo, UBO& uniforms, VkUniformBuffer& ubo) {
         while (!glfwWindowShouldClose(VkWindow::window)) {
             glfwPollEvents();
             std::jthread t1(glfwSetKeyCallback, VkWindow::window, userInput);
@@ -31,18 +32,21 @@ struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
 
             // Compute Queue
             vkComputeSync();
-            computePpln.computeCommand(computeCommands[currentFrame], setCount, sets);
+            computePpln.computeCommand(computeCommands[currentFrame]);
             vkSubmitComputeQueue();
 
             // Render Queue
             vkRenderSync();
             beginRender(imageIndex);
             
-            ptclPpln.bind(renderCommands[currentFrame], setCount, sets);
+            ptclPpln.bind(renderCommands[currentFrame]);
             ptclPpln.draw(renderCommands[currentFrame], ssbo.Buffer[currentFrame]);
 
-            pipeline.bind(renderCommands[currentFrame], setCount, sets);
+            pipeline.bind(renderCommands[currentFrame]);
             model.draw(renderCommands[currentFrame]);
+
+            octreePipe.bind(renderCommands[currentFrame]);
+            octree.draw(renderCommands[currentFrame]);
             
             endRender();
 
@@ -59,12 +63,12 @@ protected:
         double currentTime = glfwGetTime();
         lastTime = currentTime;
     }
-    void updateSystem(UBO& uniforms, VkUniformBuffer<UBO>& ubo) {
+    void updateSystem(UBO& uniforms, VkUniformBuffer& ubo) {
         uniforms.update(lastTime);
         ubo.update(currentFrame, &uniforms);
 
-        updateVtx();
-        model.update(testVtx);
+        //updateVtx();
+        //model.update(testVtx);
     }
     void updateVtx() {
         float cyclicTime = glm::radians(45 * float(lastTime));

@@ -408,13 +408,11 @@ private:
 
 template<typename T>
 struct VectorBuffer : PhxBuffer, VkCommand {
-    VectorBuffer(std::vector<T> const& vector) requires (std::is_same_v<T, Vertex>) {
+    VectorBuffer() requires (std::is_same_v<T, Vertex> or std::is_same_v<T, glm::vec3>) {
         usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        init(vector);
     }
-    VectorBuffer(std::vector<T> const& vector) requires (std::is_same_v<T, uint16_t>) {
+    VectorBuffer() requires (std::is_same_v<T, uint16_t>) {
         usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        init(vector);
     }
     ~VectorBuffer() {
         vkUnmapMemory(VkGPU::device, mStageBuffer.memory);
@@ -440,7 +438,7 @@ protected:
 
         copyBuffer();
     }
-    void bind(VkCommandBuffer& commandBuffer) requires (std::is_same_v<T, Vertex>) {
+    void bind(VkCommandBuffer& commandBuffer) requires (std::is_same_v<T, Vertex> or std::is_same_v<T, glm::vec3>) {
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &self, offsets);
     }
@@ -474,7 +472,9 @@ private:
 };
 
 struct PhxModel : VectorBuffer<Vertex>, VectorBuffer<uint16_t> {
-    PhxModel(std::vector<Vertex> const& vtx, std::vector<uint16_t> const& idx) : VectorBuffer<Vertex>(vtx), VectorBuffer<uint16_t>(idx) {
+    PhxModel(std::vector<Vertex> const& vtx, std::vector<uint16_t> const& idx) {
+        VectorBuffer<Vertex>::init(vtx);
+        VectorBuffer<uint16_t>::init(idx);
         indexCount = static_cast<uint32_t>(idx.size());
     }
 public:

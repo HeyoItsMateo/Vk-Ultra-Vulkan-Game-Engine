@@ -47,18 +47,18 @@ struct Particle {
     }
 };
 
-struct SSBO {
+struct pop {
     std::vector<Particle> particles;
-    SSBO(int PARTICLE_COUNT = PARTICLE_COUNT) {
+    pop(int PARTICLE_COUNT = PARTICLE_COUNT) {
         particles.resize(PARTICLE_COUNT);
         std::random_device rand;
         std::mt19937_64 rndEngine(rand());
         std::for_each(std::execution::par, particles.begin(), particles.end(),
-            [&](Particle& particle) 
+            [&](Particle& particle)
             {
                 std::uniform_real_distribution<float> rndDist(-0.9f, 0.9f);
                 std::uniform_real_distribution<float> rndColor(0.f, 1.0f);
-                
+
                 float x = rndDist(rndEngine);
                 float y = rndDist(rndEngine);
                 float z = rndDist(rndEngine);
@@ -69,20 +69,21 @@ struct SSBO {
     }
 };
 
-struct VkStorageBuffer : VkCommand, VkDescriptor {
+template<typename T>
+struct SSBO : VkCommand, VkDescriptor {
+    std::vector<T> bufferData;
     std::vector<VkBuffer> Buffer;
-    std::vector<VkDeviceMemory> Memory;
 
-    VkDeviceSize bufferSize;
+    template<typename Q>
+    inline SSBO(Q& input, VkShaderStageFlags flags, VkDescriptorType type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
+        bufferData = input;
+        loadData();
 
-    VkStorageBuffer(SSBO& ssbo, VkDescriptorType type, VkShaderStageFlags flag) {
-        createDataBuffer(ssbo);
-        
-        createDescriptorSetLayout();
-        createDescriptorPool();
-        createDescriptorSets();
+        createDescriptorSetLayout(type, flags);
+        createDescriptorPool(type);
+        createDescriptorSets(type);
     }
-    ~VkStorageBuffer() {
+    ~SSBO() {
         std::for_each(std::execution::par, Buffer.begin(), Buffer.end(),
             [&](VkBuffer buffer) { vkDestroyBuffer(VkGPU::device, buffer, nullptr); });
 
@@ -92,8 +93,11 @@ struct VkStorageBuffer : VkCommand, VkDescriptor {
         vkDestroyDescriptorPool(VkGPU::device, Pool, nullptr);
         vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
     }
-protected:
-    void createDataBuffer(SSBO& ssbo) {
+private:
+    VkDeviceSize bufferSize;
+    std::vector<VkDeviceMemory> Memory;
+    
+    void loadData() {
         void* data;
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
@@ -101,16 +105,16 @@ protected:
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
-        bufferSize = sizeof(Particle)*PARTICLE_COUNT;
+        bufferSize = sizeof(T) * bufferData.size();
 
         createBuffer(stagingBuffer, stagingBufferMemory,
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        
+
         vkMapMemory(VkGPU::device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, ssbo.particles.data(), (size_t)bufferSize);
+        memcpy(data, bufferData.data(), (size_t)bufferSize);
         vkUnmapMemory(VkGPU::device, stagingBufferMemory);
-        
+
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(Buffer[i], Memory[i],
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -157,19 +161,19 @@ protected:
         endCommand();
     }
 private:
-    void createDescriptorSetLayout() {
+    void createDescriptorSetLayout(VkDescriptorType& type, VkShaderStageFlags flags) {
         std::vector<VkDescriptorSetLayoutBinding> layoutBindings(2);
         layoutBindings[0].binding = 0;
         layoutBindings[0].descriptorCount = 1;
-        layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        layoutBindings[0].descriptorType = type;
         layoutBindings[0].pImmutableSamplers = nullptr;
-        layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        layoutBindings[0].stageFlags = flags;
 
         layoutBindings[1].binding = 1;
         layoutBindings[1].descriptorCount = 1;
-        layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        layoutBindings[1].descriptorType = type;
         layoutBindings[1].pImmutableSamplers = nullptr;
-        layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        layoutBindings[1].stageFlags = flags;
 
         VkDescriptorSetLayoutCreateInfo layoutInfo
         { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
@@ -180,10 +184,9 @@ private:
             throw std::runtime_error("failed to create compute descriptor set layout!");
         }
     }
-    void createDescriptorPool() {
-        VkDescriptorPoolSize poolSizes{};
-        poolSizes.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        poolSizes.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 2;
+    void createDescriptorPool(VkDescriptorType& type) {
+        VkDescriptorPoolSize poolSizes
+        { type , static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 2 };
 
         VkDescriptorPoolCreateInfo poolInfo
         { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
@@ -195,7 +198,7 @@ private:
             throw std::runtime_error("failed to create descriptor pool!");
         }
     }
-    void createDescriptorSets() {
+    void createDescriptorSets(VkDescriptorType& type) {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
         VkDescriptorSetAllocateInfo allocInfo
         { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
@@ -221,7 +224,7 @@ private:
             descriptorWrites[0].dstSet = Sets[i];
             descriptorWrites[0].dstBinding = 0;
             descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrites[0].descriptorType = type;
             descriptorWrites[0].descriptorCount = 1;
             descriptorWrites[0].pBufferInfo = &storageBufferInfoLastFrame;
 
@@ -234,7 +237,7 @@ private:
             descriptorWrites[1].dstSet = Sets[i];
             descriptorWrites[1].dstBinding = 1;
             descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrites[1].descriptorType = type;
             descriptorWrites[1].descriptorCount = 1;
             descriptorWrites[1].pBufferInfo = &storageBufferInfoCurrentFrame;
 

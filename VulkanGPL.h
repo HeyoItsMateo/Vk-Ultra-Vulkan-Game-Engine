@@ -28,7 +28,7 @@
 #include "SSBO.h"
 
 #include "helperFunc.h"
-
+#include "Octree.h"
 
 
 
@@ -138,7 +138,9 @@ template<VkPipelineBindPoint bindPoint>
 struct VkPipelineBase {
     VkPipeline mPipeline;
     VkPipelineLayout mLayout;
-    VkPipelineBase(std::vector<VkDescriptor*>& descriptors) {
+    VkPipelineBase(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& Sets) {
+        setCount = descriptors.size();
+        sets = Sets;
         std::vector<VkDescriptorSetLayout> layout = packMembers<&VkDescriptor::SetLayout>(descriptors);
         vkLoadSetLayout(layout);
     }
@@ -146,11 +148,14 @@ struct VkPipelineBase {
         std::jthread t0(vkDestroyPipeline, VkGPU::device, std::ref(mPipeline), nullptr);
         std::jthread t1(vkDestroyPipelineLayout, VkGPU::device, std::ref(mLayout), nullptr);
     }
-    void bind(VkCommandBuffer commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
-        vkCmdBindDescriptorSets(commandBuffer, bindPoint, mLayout, 0, setCount, sets, 0, nullptr);
+    void bind(VkCommandBuffer commandBuffer) {
+        
+        vkCmdBindDescriptorSets(commandBuffer, bindPoint, mLayout, 0, setCount, sets.data(), 0, nullptr);
         vkCmdBindPipeline(commandBuffer, bindPoint, mPipeline);
     }
 protected:
+    uint32_t setCount;
+    std::vector<VkDescriptorSet> sets;
     VkPipelineBindPoint bindPoint = bindPoint;
     void vkLoadSetLayout(std::vector<VkDescriptorSetLayout>& SetLayout) {
         VkPipelineLayoutCreateInfo pipelineLayoutInfo
@@ -166,8 +171,8 @@ protected:
 
 template<typename T>
 struct VkGraphicsPipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> {
-    VkGraphicsPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkShader*>& shaders)
-        : VkPipelineBase(descriptors)
+    VkGraphicsPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders)
+        : VkPipelineBase(descriptors, sets)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
@@ -241,8 +246,8 @@ private:
 
 template<typename T>
 struct VkTestPipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> {
-    VkTestPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkShader*>& shaders)
-        : VkPipelineBase(descriptors)
+    VkTestPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders)
+        : VkPipelineBase(descriptors, sets)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
@@ -331,13 +336,13 @@ private:
 };
 
 struct VkComputePipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_COMPUTE> {
-    VkComputePipeline(std::vector<VkDescriptor*>& descriptors, VkPipelineShaderStageCreateInfo& computeStage)
-        : VkPipelineBase(descriptors)
+    VkComputePipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, VkPipelineShaderStageCreateInfo& computeStage)
+        : VkPipelineBase(descriptors, sets)
     {
         vkCreatePipeline(computeStage);
     }
 
-    void computeCommand(VkCommandBuffer& commandBuffer, uint32_t setCount, VkDescriptorSet* sets) {
+    void computeCommand(VkCommandBuffer& commandBuffer) {
         VkCommandBufferBeginInfo beginInfo
         { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 
@@ -347,7 +352,7 @@ struct VkComputePipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_COMPUTE> {
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mPipeline);
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mLayout, 0, setCount, sets, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mLayout, 0, setCount, sets.data(), 0, nullptr);
 
         vkCmdDispatch(commandBuffer, PARTICLE_COUNT / (100), PARTICLE_COUNT / (100), PARTICLE_COUNT / (100));
 

@@ -49,14 +49,14 @@ private:
     }
 };
 
-template<typename T>
+
 struct VkUniformBuffer : VkCommand, VkDescriptor {
     std::vector<VkBuffer> Buffer;
     std::vector<VkDeviceMemory> Memory;
 
     VkDeviceSize bufferSize;
-
-    constexpr VkUniformBuffer(T& ubo, VkDescriptorType type, VkShaderStageFlags flag) {
+    template<typename T>
+    inline constexpr VkUniformBuffer(T& ubo, VkShaderStageFlags flag, VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
         createDataBuffer(ubo);
 
         createDescriptorSetLayout(type, flag);
@@ -87,7 +87,8 @@ private:
     void* data;
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
-    void createDataBuffer(T& ubo) {
+    template<typename T>
+    inline void createDataBuffer(T& ubo) {
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
 

@@ -1,5 +1,6 @@
 #include "VulkanAPI.h"
 
+
 #include <limits>
 #include <algorithm>
 #include <optional>
@@ -7,7 +8,7 @@
 
 const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-const int MAX_FRAMES_IN_FLIGHT = 2;
+const int MAX_FRAMES_IN_FLIGHT = 1;
 
 struct VkGPU : VulkanAPI {
     inline static VkDevice device;
@@ -98,8 +99,8 @@ private:
 
         float queuePriority = 1.0f;
         for (uint32_t queueFamily : uniqueQueueFamilies) {
-            VkDeviceQueueCreateInfo queueCreateInfo{};
-            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            VkDeviceQueueCreateInfo queueCreateInfo
+            { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
             queueCreateInfo.queueFamilyIndex = queueFamily;
             queueCreateInfo.queueCount = 1;
             queueCreateInfo.pQueuePriorities = &queuePriority;
@@ -110,8 +111,8 @@ private:
         deviceFeatures.samplerAnisotropy = VK_TRUE;
         deviceFeatures.sampleRateShading = VK_TRUE; // enable sample shading feature for the device
 
-        VkDeviceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        VkDeviceCreateInfo createInfo
+        { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;
@@ -238,6 +239,8 @@ struct VkDepthImage : VulkanImage {
 };
 
 struct VkSwapChain : VkGPU {
+    inline static double lastTime = 0.0;
+
     inline static VkSwapchainKHR swapChainKHR;
     inline static VkExtent2D Extent;
     inline static VkRenderPass renderPass;
@@ -395,6 +398,11 @@ struct VkSwapChain : VkGPU {
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }
+    }
+protected:
+    void deltaTime() {
+        double currentTime = glfwGetTime();
+        lastTime = currentTime;
     }
 private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {

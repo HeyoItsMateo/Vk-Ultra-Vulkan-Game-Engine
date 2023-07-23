@@ -408,20 +408,18 @@ private:
 
 template<typename T>
 struct VectorBuffer : PhxBuffer, VkCommand {
-    VectorBuffer(std::vector<T> const& vector) requires (std::is_same_v<T, Vertex>) {
+    VectorBuffer() requires (std::is_same_v<T, Vertex> or std::is_same_v<T, glm::vec3>) {
         usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        init(vector);
     }
-    VectorBuffer(std::vector<T> const& vector) requires (std::is_same_v<T, uint16_t>) {
+    VectorBuffer() requires (std::is_same_v<T, uint16_t>) {
         usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        init(vector);
     }
     ~VectorBuffer() {
         vkUnmapMemory(VkGPU::device, mStageBuffer.memory);
         destroyBuffer();
         freeMemory();
     }
-protected:
+public:
     void init(std::vector<T> const& vector) {
         size = vector.size() * sizeof(T);
         properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -440,7 +438,8 @@ protected:
 
         copyBuffer();
     }
-    void bind(VkCommandBuffer& commandBuffer) requires (std::is_same_v<T, Vertex>) {
+protected:
+    void bind(VkCommandBuffer& commandBuffer) requires (std::is_same_v<T, Vertex> or std::is_same_v<T, glm::vec3>) {
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &self, offsets);
     }
@@ -473,22 +472,30 @@ private:
     }
 };
 
-struct PhxModel : VectorBuffer<Vertex>, VectorBuffer<uint16_t> {
-    PhxModel(std::vector<Vertex> const& vtx, std::vector<uint16_t> const& idx) : VectorBuffer<Vertex>(vtx), VectorBuffer<uint16_t>(idx) {
-        indexCount = static_cast<uint32_t>(idx.size());
-    }
-public:
-    void draw(VkCommandBuffer& commandBuffer) {
+struct GameObject : VectorBuffer<Vertex>, VectorBuffer<uint16_t> {
+
+    void draw() {
+        VkCommandBuffer& commandBuffer = VkEngineCPU::renderCommands[VkSwapChain::currentFrame];
+
         VectorBuffer<Vertex>::bind(commandBuffer);
         VectorBuffer<uint16_t>::bind(commandBuffer);
 
         vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
     }
+protected:
+    uint32_t indexCount, instanceCount = 1;
+};
+
+struct PhxModel : GameObject {
+    PhxModel(std::vector<Vertex> const& vtx, std::vector<uint16_t> const& idx) {
+        VectorBuffer<Vertex>::init(vtx);
+        VectorBuffer<uint16_t>::init(idx);
+        indexCount = static_cast<uint32_t>(idx.size());
+    }
+public:
     void update(std::vector<Vertex> const& vtx) { //TODO: create Update Func
         VectorBuffer<Vertex>::update(vtx);
     }
-private:
-    uint32_t indexCount;
 };
 
 

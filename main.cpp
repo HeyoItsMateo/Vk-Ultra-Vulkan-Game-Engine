@@ -6,34 +6,51 @@
 VkWindow window("Vulkan");
 VkGraphicsEngine app;
 
-UBO uniforms;
-SSBO shaderStorage;
+Uniforms uniforms;
+UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 
-VkUniformBuffer<UBO> ubo(uniforms, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
-VkStorageBuffer ssbo(shaderStorage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
+pop population;
+Octree tree(vertices, 0.01f);
+
+SSBO<Particle> ssbo(population.particles, VK_SHADER_STAGE_COMPUTE_BIT);
+SSBO<glm::mat4> modelSSBO(tree.matrices, VK_SHADER_STAGE_VERTEX_BIT);
+
+
+PhxModel model(vertices, indices);
+
+
 
 VkTexture planks("textures/planks.png");
 VkTextureSet textureSet(planks);
 
-VkDescriptorSet sets[] = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], ssbo.Sets[VkSwapChain::currentFrame] };
+std::vector<VkDescriptorSet> segs = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], ssbo.Sets[VkSwapChain::currentFrame] };
+//std::vector<VkDescriptorSet> segs2 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], modelSSBO.Sets[VkSwapChain::currentFrame] };
 
 std::vector<VkDescriptor*> descriptors = { &ubo, &textureSet, &ssbo };
+std::vector<VkDescriptor*> desc2 = { &ubo, &textureSet, &modelSSBO };
 
 VkShader vertShader("shaders/vertexVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 VkShader fragShader("shaders/vertexFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 VkShader compShader("shaders/pointComp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+std::vector<VkShader*> shaders = { &vertShader, &fragShader };
 
 VkShader pointVert("shaders/pointVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 VkShader pointFrag("shaders/pointFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+std::vector<VkShader*> compShaders = { &pointVert, &pointFrag };
 
-std::vector<VkShader*> shaders = { &vertShader, &fragShader };
-std::vector<VkShader*> compShaders = { &pointVert, &pointFrag};
+VkShader octreeVert("shaders/octreeVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+VkShader octreeFrag("shaders/octreeFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+std::vector<VkShader*> octreeShaders = { &octreeVert, &octreeFrag };
 
-VkGraphicsPipeline<Vertex> pipeline(descriptors, shaders);
 
-VkTestPipeline<Particle> ptclPipeline(descriptors, compShaders);
 
-VkComputePipeline testPpln(descriptors, compShader.stageInfo);
+VkGraphicsPipeline<Vertex> pipeline(descriptors, segs, shaders);
+
+VkGraphicsPipeline<Cube> octreePPL(descriptors, segs, octreeShaders);
+
+VkParticlePipeline particlePPL(descriptors, segs, compShaders);
+
+VkComputePipeline computePPL(descriptors, segs, compShader.stageInfo);
 
 //TODO: Learn discrete differential geometry
 //TODO: Implement waves~
@@ -48,6 +65,7 @@ VkPhysicalDeviceProperties properties;
 
 
 int main() {
+
     vkGetPhysicalDeviceProperties(VkGPU::physicalDevice, &properties);
 
     printMsg("maxWorkgroupSize is:", *properties.limits.maxComputeWorkGroupSize);
@@ -55,7 +73,7 @@ int main() {
     printMsg("maxWorkGroupCount is:", *properties.limits.maxComputeWorkGroupCount);
 
     try {
-        app.run(pipeline, ptclPipeline, testPpln, ssbo, uniforms, ubo, 3, sets);
+        app.run(pipeline, octreePPL, model, tree, particlePPL, computePPL, ssbo, ubo);
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;

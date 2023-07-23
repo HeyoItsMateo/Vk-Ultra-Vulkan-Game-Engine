@@ -162,8 +162,8 @@ private:
 };
 
 struct VkEngineCPU : VkEngineSync, VkCPU {
-    std::vector<VkCommandBuffer> renderCommands;
-    std::vector<VkCommandBuffer> computeCommands;
+    inline static std::vector<VkCommandBuffer> renderCommands;
+    inline static std::vector<VkCommandBuffer> computeCommands;
     VkEngineCPU() {
         createCommandBuffers(renderCommands);
         createCommandBuffers(computeCommands);

@@ -49,21 +49,50 @@ private:
     }
 };
 
+struct Uniforms {
+    float dt = 1.f;
+    alignas(16) glm::mat4 model = glm::mat4(1.f);
+    camMatrix camera;
+    void update(double lastTime, float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {
+        std::jthread t1([this]
+            { modelUpdate(); }
+        );
+        std::jthread t2([this, FOVdeg, nearPlane, farPlane]
+            { camera.update(FOVdeg, nearPlane, farPlane); }
+        );
+        std::jthread t3([this, lastTime]
+            { deltaTime(lastTime); }
+        );
+    }
+private:
+    void modelUpdate() {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    }
+    void deltaTime(double lastTime) {
+        double currentTime = glfwGetTime();
+        dt = (currentTime - lastTime);
+    }
+};
 template<typename T>
-struct VkUniformBuffer : VkCommand, VkDescriptor {
+struct UBO : VkCommand, VkDescriptor {
     std::vector<VkBuffer> Buffer;
     std::vector<VkDeviceMemory> Memory;
 
     VkDeviceSize bufferSize;
 
-    constexpr VkUniformBuffer(T& ubo, VkDescriptorType type, VkShaderStageFlags flag) {
-        createDataBuffer(ubo);
+    constexpr UBO(T& ubo, VkShaderStageFlags flag, VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+        uniforms = ubo;
+        createDataBuffer();
 
         createDescriptorSetLayout(type, flag);
         createDescriptorPool(type);
         createDescriptorSets(type);
     }
-    ~VkUniformBuffer() {
+    ~UBO() {
         vkUnmapMemory(VkGPU::device, stagingBufferMemory);
         vkDestroyBuffer(VkGPU::device, stagingBuffer, nullptr);
         vkFreeMemory(VkGPU::device, stagingBufferMemory, nullptr);
@@ -78,16 +107,19 @@ struct VkUniformBuffer : VkCommand, VkDescriptor {
         vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
     }
 
-    void update(uint32_t currentImage, void* contents) {
-        memcpy(data, contents, (size_t)bufferSize);
+    void update() {
+        uniforms.update(VkSwapChain::lastTime);
 
-        copyBuffer(stagingBuffer, Buffer[currentImage], bufferSize);
+        memcpy(data, &uniforms, (size_t)bufferSize);
+
+        copyBuffer(stagingBuffer, Buffer[VkSwapChain::currentFrame], bufferSize);
     }
 private:
+    T uniforms;
     void* data;
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
-    void createDataBuffer(T& ubo) {
+    void createDataBuffer() {
         Buffer.resize(MAX_FRAMES_IN_FLIGHT);
         Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -98,7 +130,7 @@ private:
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         vkMapMemory(VkGPU::device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, &ubo, (size_t)bufferSize);
+        memcpy(data, &uniforms, (size_t)bufferSize);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(Buffer[i], Memory[i], bufferSize,

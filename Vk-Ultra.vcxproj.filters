@@ -41,6 +41,12 @@
     <None Include="shaders\shader.comp">
       <Filter>Resource Files\shaders</Filter>
     </None>
+    <None Include="shaders\octree.frag">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="shaders\octree.vert">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="VulkanEngine.h">
@@ -74,6 +80,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="VulkanCPU.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Octree.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

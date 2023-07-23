@@ -147,6 +147,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\compile.bat" />
+    <None Include="shaders\octree.frag" />
+    <None Include="shaders\octree.vert" />
     <None Include="shaders\shader.comp" />
     <None Include="shaders\vertex.frag" />
     <None Include="shaders\vertex.vert" />
@@ -157,6 +159,7 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DBO.h" />
     <ClInclude Include="helperFunc.h" />
+    <ClInclude Include="Octree.h" />
     <ClInclude Include="PhysX.h" />
     <ClInclude Include="SSBO.h" />
     <ClInclude Include="Model.h" />

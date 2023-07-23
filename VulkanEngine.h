@@ -1,7 +1,6 @@
 #include "VulkanGPL.h"
 
 struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
-    PhxModel model;
     std::vector<Vertex> testVtx = {
     {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
     {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
@@ -13,38 +12,23 @@ struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
     {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
     {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
     };
-
-    
-    VkGraphicsEngine() : model(vertices,indices) {
-
-    }
-    void run(VkGraphicsPipeline<Vertex>& pipeline, VkTestPipeline<Particle>& ptclPpln, VkComputePipeline& computePpln, VkStorageBuffer& ssbo, UBO& uniforms, VkUniformBuffer<UBO>& ubo, uint32_t setCount, VkDescriptorSet* sets) {
+    template<typename T, typename Q>
+    inline void run(GraphicsPipeline& pipeline0, GraphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, VkParticlePipeline& particlePipeline, VkComputePipeline& computePipeline, SSBO<T>& ssbo, UBO<Q>& ubo) {
         while (!glfwWindowShouldClose(VkWindow::window)) {
             glfwPollEvents();
             std::jthread t1(glfwSetKeyCallback, VkWindow::window, userInput);
             std::jthread t2(&VkGraphicsEngine::deltaTime, this);
 
-            updateSystem(uniforms, ubo);
+            ubo.update();
 
             uint32_t imageIndex;
             vkAquireImage(imageIndex);
 
             // Compute Queue
-            vkComputeSync();
-            computePpln.computeCommand(computeCommands[currentFrame], setCount, sets);
-            vkSubmitComputeQueue();
+            runCompute(computePipeline);
 
             // Render Queue
-            vkRenderSync();
-            beginRender(imageIndex);
-            
-            ptclPpln.bind(renderCommands[currentFrame], setCount, sets);
-            ptclPpln.draw(renderCommands[currentFrame], ssbo.Buffer[currentFrame]);
-
-            pipeline.bind(renderCommands[currentFrame], setCount, sets);
-            model.draw(renderCommands[currentFrame]);
-            
-            endRender();
+            renderScene(pipeline0, pipeline1, gameObject0, gameObject1, particlePipeline, ssbo, imageIndex);
 
             vkSubmitGraphicsQueue();
             vkPresentImage(imageIndex);
@@ -54,18 +38,6 @@ struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
         vkDeviceWaitIdle(device);
     }
 protected:
-    double lastTime = 0.0;
-    void deltaTime() {
-        double currentTime = glfwGetTime();
-        lastTime = currentTime;
-    }
-    void updateSystem(UBO& uniforms, VkUniformBuffer<UBO>& ubo) {
-        uniforms.update(lastTime);
-        ubo.update(currentFrame, &uniforms);
-
-        updateVtx();
-        model.update(testVtx);
-    }
     void updateVtx() {
         float cyclicTime = glm::radians(45 * float(lastTime));
         testVtx[0].pos[1] = 0.5f * glm::sin(cyclicTime);
@@ -80,6 +52,27 @@ protected:
     }
 
 private:
+    void runCompute(VkComputePipeline& pipeline) {
+        vkComputeSync();
+        pipeline.run();
+        vkSubmitComputeQueue();
+    }
+    template<typename T>
+    inline void renderScene(GraphicsPipeline& pipeline0, GraphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, VkParticlePipeline& particlePipeline, SSBO<T>& ssbo, uint32_t& imageIndex) {
+        vkRenderSync();
+        beginRender(imageIndex);
+
+        particlePipeline.bind();
+        particlePipeline.draw(ssbo.Buffer[currentFrame]);
+       
+        pipeline0.bind();
+        gameObject0.draw();
+        
+        pipeline1.bind();
+        gameObject1.draw();
+
+        endRender();
+    }
     void beginRender(uint32_t& imageIndex) {
         VkCommandBufferBeginInfo beginInfo
         { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };

@@ -156,8 +156,10 @@
     <None Include="shaders\point.vert" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bufferObjects.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DBO.h" />
+    <ClInclude Include="descriptors.h" />
     <ClInclude Include="helperFunc.h" />
     <ClInclude Include="Octree.h" />
     <ClInclude Include="PhysX.h" />

@@ -16,8 +16,6 @@
 #include <chrono>
 #include <random>
 
-
-
 #include "VulkanGPU.h"
 #include "VulkanCPU.h"
 
@@ -32,8 +30,8 @@
 #include "helperFunc.h"
 #include "Octree.h"
 
-
-
+#include "descriptors.h"
+#include "bufferObjects.h"
 //typedef void(__stdcall* vkDestroyFunction)(VkDevice, void ,const VkAllocationCallbacks*);
 
 std::vector<Vertex> vertices = {
@@ -111,11 +109,11 @@ template<VkPipelineBindPoint bindPoint>
 struct VkPipelineBase {
     VkPipeline mPipeline;
     VkPipelineLayout mLayout;
-    VkPipelineBase(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& Sets) {
-        setCount = descriptors.size();
+    VkPipelineBase(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& Sets, std::vector<VkDescriptorSetLayout>& testing) {
+        setCount = Sets.size();
         sets = Sets;
         std::vector<VkDescriptorSetLayout> layout = packMembers<&VkDescriptor::SetLayout>(descriptors);
-        vkLoadSetLayout(layout);
+        vkLoadSetLayout(testing);
     }
     ~VkPipelineBase() {
         std::jthread t0(vkDestroyPipeline, VkGPU::device, std::ref(mPipeline), nullptr);
@@ -147,8 +145,8 @@ typedef VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> GraphicsPipeline;
 
 template<typename T>
 struct VkGraphicsPipeline : GraphicsPipeline {
-    VkGraphicsPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders)
-        : GraphicsPipeline(descriptors, sets)
+    VkGraphicsPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders, std::vector<VkDescriptorSetLayout>& testing)
+        : GraphicsPipeline(descriptors, sets, testing)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
@@ -221,8 +219,8 @@ private:
 };
 
 struct VkParticlePipeline : GraphicsPipeline {
-    VkParticlePipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders)
-        : GraphicsPipeline(descriptors, sets)
+    VkParticlePipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders, std::vector<VkDescriptorSetLayout>& testing)
+        : GraphicsPipeline(descriptors, sets, testing)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
@@ -313,8 +311,8 @@ private:
 };
 
 struct VkComputePipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_COMPUTE> {
-    VkComputePipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, VkPipelineShaderStageCreateInfo& computeStage)
-        : VkPipelineBase(descriptors, sets)
+    VkComputePipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, VkPipelineShaderStageCreateInfo& computeStage, std::vector<VkDescriptorSetLayout>& testing)
+        : VkPipelineBase(descriptors, sets, testing)
     {
         vkCreatePipeline(computeStage);
     }

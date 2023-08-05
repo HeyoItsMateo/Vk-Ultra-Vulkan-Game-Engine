@@ -9,22 +9,24 @@ VkGraphicsEngine app;
 Uniforms uniforms;
 UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 
-pop population;
-Octree tree(vertices, 0.01f);
-
-SSBO<Particle> ssbo(population.particles, VK_SHADER_STAGE_COMPUTE_BIT);
-SSBO<glm::mat4> modelSSBO(tree.matrices, VK_SHADER_STAGE_VERTEX_BIT);
-
-
-PhxModel model(vertices, indices);
 
 
 
 VkTexture planks("textures/planks.png");
+//std::vector<VkTexture> textures{planks};
 VkTextureSet textureSet(planks);
+
+pop population;
+SSBO ssbo(population.particles, VK_SHADER_STAGE_COMPUTE_BIT);
+
+Octree tree(vertices, 0.01f);
+SSBO modelSSBO(tree.matrices, VK_SHADER_STAGE_VERTEX_BIT);
+
+PhxModel model(vertices, indices);
 
 std::vector<VkDescriptorSet> segs = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], ssbo.Sets[VkSwapChain::currentFrame] };
 //std::vector<VkDescriptorSet> segs2 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], modelSSBO.Sets[VkSwapChain::currentFrame] };
+std::vector<VkDescriptorSetLayout> testing = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
 
 std::vector<VkDescriptor*> descriptors = { &ubo, &textureSet, &ssbo };
 std::vector<VkDescriptor*> desc2 = { &ubo, &textureSet, &modelSSBO };
@@ -44,13 +46,13 @@ std::vector<VkShader*> octreeShaders = { &octreeVert, &octreeFrag };
 
 
 
-VkGraphicsPipeline<Vertex> pipeline(descriptors, segs, shaders);
+VkGraphicsPipeline<Vertex> pipeline(descriptors, segs, shaders, testing);
 
-VkGraphicsPipeline<Cube> octreePPL(descriptors, segs, octreeShaders);
+VkGraphicsPipeline<Cube> octreePPL(descriptors, segs, octreeShaders, testing);
 
-VkParticlePipeline particlePPL(descriptors, segs, compShaders);
+VkParticlePipeline particlePPL(descriptors, segs, compShaders, testing);
 
-VkComputePipeline computePPL(descriptors, segs, compShader.stageInfo);
+VkComputePipeline computePPL(descriptors, segs, compShader.stageInfo, testing);
 
 //TODO: Learn discrete differential geometry
 //TODO: Implement waves~
@@ -73,7 +75,7 @@ int main() {
     printMsg("maxWorkGroupCount is:", *properties.limits.maxComputeWorkGroupCount);
 
     try {
-        app.run(pipeline, octreePPL, model, tree, particlePPL, computePPL, ssbo, ubo);
+        app.run(pipeline, octreePPL, model, tree, particlePPL, computePPL, ssbo, ubo, uniforms);
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;

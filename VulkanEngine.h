@@ -12,14 +12,13 @@ struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
     {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
     {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
     };
-    template<typename T, typename Q>
-    inline void run(GraphicsPipeline& pipeline0, GraphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, VkParticlePipeline& particlePipeline, VkComputePipeline& computePipeline, SSBO<T>& ssbo, UBO<Q>& ubo) {
+    void run(GraphicsPipeline& pipeline0, GraphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, VkParticlePipeline& particlePipeline, VkComputePipeline& computePipeline, SSBO& ssbo, UBO& ubo, Uniforms& uniforms) {
         while (!glfwWindowShouldClose(VkWindow::window)) {
             glfwPollEvents();
             std::jthread t1(glfwSetKeyCallback, VkWindow::window, userInput);
             std::jthread t2(&VkGraphicsEngine::deltaTime, this);
 
-            ubo.update();
+            ubo.update(uniforms);
 
             uint32_t imageIndex;
             vkAquireImage(imageIndex);
@@ -57,8 +56,7 @@ private:
         pipeline.run();
         vkSubmitComputeQueue();
     }
-    template<typename T>
-    inline void renderScene(GraphicsPipeline& pipeline0, GraphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, VkParticlePipeline& particlePipeline, SSBO<T>& ssbo, uint32_t& imageIndex) {
+    void renderScene(GraphicsPipeline& pipeline0, GraphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, VkParticlePipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
         vkRenderSync();
         beginRender(imageIndex);
 

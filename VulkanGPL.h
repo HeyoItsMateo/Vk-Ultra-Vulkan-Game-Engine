@@ -23,8 +23,8 @@
 
 #include "Camera.h"
 #include "Model.h"
-#include "DBO.h"
 
+#include "UBO.h"
 #include "SSBO.h"
 
 #include "helperFunc.h"

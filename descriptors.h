@@ -1,7 +1,6 @@
 #ifndef hDescriptors
 #define hDescriptors
 
-
 struct VkDescriptor {
     VkDescriptorSetLayout SetLayout;
     std::vector<VkDescriptorSet> Sets;

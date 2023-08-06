@@ -190,35 +190,5 @@ private:
     }
 };
 
-template<VkDescriptorType type>
-struct MkDescriptor {
-    VkDescriptorPool Pool;
-    void createDescriptorPool(uint32_t bindingCount) {
-        VkDescriptorPoolSize poolSizes
-        { type , static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * bindingCount };
-
-        VkDescriptorPoolCreateInfo poolInfo
-        { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSizes;
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-    }
-public:
-    VkDescriptorSetLayout SetLayout;
-    std::vector<VkDescriptorSet> Sets;
-};
-
-
-
-typedef MkDescriptor<VK_DESCRIPTOR_TYPE_STORAGE_BUFFER> descSSBO;
-typedef MkDescriptor<VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER> descUBO;
-
-struct descriptorSSBO {
-    VkDescriptorType type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-};
 
 #endif

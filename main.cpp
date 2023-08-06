@@ -10,8 +10,6 @@ Uniforms uniforms;
 UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 
 
-
-
 VkTexture planks("textures/planks.png");
 //std::vector<VkTexture> textures{planks};
 VkTextureSet textureSet(planks);
@@ -24,12 +22,13 @@ SSBO modelSSBO(tree.matrices, VK_SHADER_STAGE_VERTEX_BIT);
 
 PhxModel model(vertices, indices);
 
+std::vector<VkDescriptor*> descriptors = { &ubo, &textureSet, &ssbo };
+
 std::vector<VkDescriptorSet> segs = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], ssbo.Sets[VkSwapChain::currentFrame] };
-//std::vector<VkDescriptorSet> segs2 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], modelSSBO.Sets[VkSwapChain::currentFrame] };
 std::vector<VkDescriptorSetLayout> testing = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
 
-std::vector<VkDescriptor*> descriptors = { &ubo, &textureSet, &ssbo };
-std::vector<VkDescriptor*> desc2 = { &ubo, &textureSet, &modelSSBO };
+std::vector<VkDescriptorSet> segs2 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], modelSSBO.Sets[VkSwapChain::currentFrame] };
+std::vector<VkDescriptorSetLayout> testing2 = { ubo.SetLayout, textureSet.SetLayout, modelSSBO.SetLayout };
 
 VkShader vertShader("shaders/vertexVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 VkShader fragShader("shaders/vertexFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -45,10 +44,9 @@ VkShader octreeFrag("shaders/octreeFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 std::vector<VkShader*> octreeShaders = { &octreeVert, &octreeFrag };
 
 
-
 VkGraphicsPipeline<Vertex> pipeline(descriptors, segs, shaders, testing);
 
-VkGraphicsPipeline<Cube> octreePPL(descriptors, segs, octreeShaders, testing);
+VkGraphicsPipeline<Cube> octreePPL(descriptors, segs2, octreeShaders, testing2);
 
 VkParticlePipeline particlePPL(descriptors, segs, compShaders, testing);
 

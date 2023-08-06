@@ -480,7 +480,7 @@ struct GameObject : VectorBuffer<Vertex>, VectorBuffer<uint16_t> {
         VectorBuffer<Vertex>::bind(commandBuffer);
         VectorBuffer<uint16_t>::bind(commandBuffer);
 
-        vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, indexCount, instanceCount, 0, 0, 0);
     }
 protected:
     uint32_t indexCount, instanceCount = 1;

@@ -87,6 +87,8 @@ struct Octree: GameObject {
         VectorBuffer<Vertex>::init(Bounds);
         VectorBuffer<uint16_t>::init(Indices);
         indexCount = static_cast<uint32_t>(Indices.size());
+
+        instanceCount = Nodes[0].nodes.size()+1;
 	}
 protected:
     glm::vec3 dimensions;
@@ -105,6 +107,8 @@ protected:
         dimensions = glm::vec3(minSize);
 
         Cube Root(center, dimensions*0.75f);
+        genResource(Root.center, Root.dimensions);
+
         Nodes.push_back(Root);
         instanceCount++;
 
@@ -144,13 +148,9 @@ private:
     }
 
     void genResources() {
-        genResource(center, Nodes[0].dimensions);
-
         for (auto& node : Nodes[0].nodes) {
             genResource(node.center, node.dimensions);
         }
-
-        
     }
     void genResource(glm::vec3 Position, glm::vec3 dimensions) {
         glm::mat4 modelMatrix(1.f);
@@ -160,13 +160,13 @@ private:
     }
     void genLayer(Cube& parentNode) {
         for (int i = 0; i < 8; i++) {
-            glm::vec3 childCenter = parentNode.vertices[i].pos / 2.f;
-            glm::vec3 childDimensions = parentNode.dimensions / 4.f;
+            glm::vec3 childCenter = parentNode.vertices[i].pos / 1.f;
+            glm::vec3 childDimensions = parentNode.dimensions / 2.f;
             Cube child(childCenter, childDimensions, (i+1)*8 );
             parentNode.nodes.push_back(child);
 
-            Bounds.insert(Bounds.end(), child.vertices.begin(), child.vertices.end());
-            Indices.insert(Indices.end(), child.indices.begin(), child.indices.end());
+            //Bounds.insert(Bounds.end(), child.vertices.begin(), child.vertices.end());
+            //Indices.insert(Indices.end(), child.indices.begin(), child.indices.end());
         }
         
     }

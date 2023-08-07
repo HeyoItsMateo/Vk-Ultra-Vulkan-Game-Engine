@@ -484,6 +484,11 @@ struct GameObject : VectorBuffer<Vertex>, VectorBuffer<uint16_t> {
     }
 protected:
     uint32_t indexCount, instanceCount = 1;
+    void init_GameObject(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices) {
+        VectorBuffer<Vertex>::init(vertices);
+        VectorBuffer<uint16_t>::init(indices);
+        indexCount = static_cast<uint32_t>(indices.size());
+    }
 };
 
 struct PhxModel : GameObject {

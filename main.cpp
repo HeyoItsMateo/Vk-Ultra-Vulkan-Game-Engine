@@ -46,7 +46,7 @@ std::vector<VkShader*> octreeShaders = { &octreeVert, &octreeFrag };
 
 VkGraphicsPipeline<Vertex> pipeline(descriptors, segs, shaders, testing);
 
-VkGraphicsPipeline<Cube> octreePPL(descriptors, segs2, octreeShaders, testing2);
+VkGraphicsPipeline<Voxel> octreePPL(descriptors, segs2, octreeShaders, testing2);
 
 VkParticlePipeline particlePPL(descriptors, segs, compShaders, testing);
 

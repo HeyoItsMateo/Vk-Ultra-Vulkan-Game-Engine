@@ -1,43 +1,52 @@
 #ifndef hOctree
 #define hOctree
 
-struct Cube {
-    std::vector<Cube> nodes;
+#include <glm/gtx/string_cast.hpp>
+
+struct Voxel {
+    std::vector<Voxel> nodes;
     std::vector<Vertex> vertices;
     std::vector<uint16_t> indices;
     glm::vec3 center;
-    glm::vec3 dimensions;
-
-    Cube(glm::vec3 Center, glm::vec3 Dimensions, int offset = 0) {
-        genVertices(Center, Dimensions);
+    glm::vec3 dimensions{1.f};
+    glm::mat4 matrix;
+    Voxel(glm::vec3 Center, glm::vec3 Dimensions) {
+        this->center = Center;
+        this->dimensions = Dimensions;
+        genVertices();
         genIndices();
-
-        if (offset != 0) {
-            offsetIndices(offset);
-        }
+        matrix = genMatrix(Center, Dimensions);
     }
 public:
+    bool containsVertex = false;
     const static VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-private:
-    void genVertices(glm::vec3 center, glm::vec3 dimensions) {
-        vertices.resize(8);
-        this->center = center;
-        this->dimensions = dimensions;
+    void checkVoxel(std::vector<Vertex>& vertices) {
+        for (auto& vertex : vertices) {
+            float dist = glm::distance(vertex.pos, center);
+            float dotp = glm::dot(center, vertex.pos);
 
-        float size = 1;
-        std::vector<glm::vec3> metrics = { { size,  size,  size },
-                                           { size,  size, -size },
-                                           { size, -size, -size },
-                                           { size, -size,  size } };
+            if ((0.5 <= dotp <= 1.5) and (dist <= glm::length(dimensions))) {
+                containsVertex = true;
+                break;
+            }
+        }
+    }
+private:
+    void genVertices() {
+        vertices.resize(8);
+        std::vector<glm::vec3> metrics = { { 1,  1,  1 },
+                                           { 1,  1, -1 },
+                                           { 1, -1, -1 },
+                                           { 1, -1,  1 } };
         for (int i = 0; i < 8; i++) {
             if (i < 4) {
-                vertices[i].pos = center + (metrics[i] * dimensions);
+                vertices[i].pos = metrics[i];
                 vertices[i].color = glm::vec3(1.f);
                 vertices[i].texCoord = glm::vec2(0.f);
             }
             else {
                 metrics[i - 4] *= glm::vec3(-1, 1, 1);
-                vertices[i].pos = center + (metrics[i - 4] * dimensions);
+                vertices[i].pos = metrics[i - 4];
                 vertices[i].color = glm::vec3(1.f);
                 vertices[i].texCoord = glm::vec2(0.f);
             }
@@ -52,8 +61,7 @@ private:
             indices[x] = floor((x + 1) / 2);
             indices[x + 8] = floor((x + 1) / 2) + 4;
         }
-        int temp0 = 4;
-        int temp1 = 0;
+        int temp0 = 4, temp1 = 0;
         for (int x = 16; x < 24; x += 2) {
             indices[x] = temp0;
             indices[x + 1] = temp1;
@@ -62,115 +70,71 @@ private:
             temp1++;
         }
     }
-    void offsetIndices(int offset) {
-        for (auto& index : indices) {
-            index += offset;
-        }
+    glm::mat4 genMatrix(glm::vec3 Center, glm::vec3 Dimensions) {
+        glm::mat4 _matrix(1.f);
+        return glm::scale(glm::translate(_matrix, Center), Dimensions);
     }
 };
 
-struct Octree: GameObject {
-    std::vector<Cube> Nodes;
-    std::vector<Vertex> Bounds;
-    std::vector<uint16_t> Indices;
-	float minSize;
-	glm::vec3 center;
-
+struct Octree : GameObject {
+    std::vector<Voxel> Nodes;
     std::vector<glm::mat4> matrices;
+    int maxInstances = 128;
+    int maxDepth = 8;
+    Octree(std::vector<Vertex>& vertices, float minSize, float rootScale = 0.8f) {
+        init_Root(vertices, minSize, rootScale);
 
-	Octree(std::vector<Vertex>& vertices, float minNodeSize) {
-		minSize = minNodeSize;
-        genRoot(vertices);
-        checkTreeV2(vertices);
-        genResources();
+        checkTree(vertices, Nodes[0]);
 
-        VectorBuffer<Vertex>::init(Bounds);
-        VectorBuffer<uint16_t>::init(Indices);
-        indexCount = static_cast<uint32_t>(Indices.size());
-
-        instanceCount = Nodes[0].nodes.size()+1;
-	}
-protected:
-    glm::vec3 dimensions;
-    std::vector<glm::vec3> containerCenters;
-    void genRoot(std::vector<Vertex>& vertices) {
+        init_GameObject(Nodes[0].vertices, Nodes[0].indices);
+    }
+private:
+    float currentDepth = 1;
+    void init_Root(std::vector<Vertex>& vertices, float minSize, float rootScale)
+    {// Generates the dimensions of the root node and creates the root node.
         float numVerts = 1;
-        glm::vec3 sumPos(0.f);
+        glm::vec3 center(0.f), sumPos(0.f);
         for (Vertex& vtx : vertices) {
             sumPos += vtx.pos;
             center = sumPos / numVerts;
-            if (glm::length(vtx.pos - center) > minSize) {
-                minSize = glm::length(vtx.pos - center);
+            if (glm::distance(vtx.pos, center) > minSize) {
+                minSize = glm::distance(vtx.pos, center);
             }
             numVerts += 1;
         }
-        dimensions = glm::vec3(minSize);
-
-        Cube Root(center, dimensions*0.75f);
-        genResource(Root.center, Root.dimensions);
-
+        Voxel Root(center, glm::vec3(minSize * rootScale));
         Nodes.push_back(Root);
-        instanceCount++;
-
-        Bounds.insert(Bounds.begin(), Root.vertices.begin(), Root.vertices.end());
-        Indices.insert(Indices.begin(), Root.indices.begin(), Root.indices.end());
-
-        if ((Bounds.size() == 0) or (Indices.size() == 0)) {
-            throw std::runtime_error("Failed to create octree!");
+        if ((Nodes[0].vertices.size() == 0) or (Nodes[0].indices.size() == 0)) {
+            throw std::runtime_error("Failed to create root!");
         }
+        matrices.push_back(Root.matrix);
+        instanceCount++;
     }
     
-private:
-    int offset = 0;
-    float nLayers = 1;
-    float layerCount = 1;
-    void checkTreeV2(std::vector<Vertex>& vertices) {
-        if (vertices.size() > 1) {
-            genLayer(Nodes[0]);
-            layerCount+=1;
-            for (int i = 0; i < 8; i++) {
-                //int count = 0;
-                for (auto& vertex : vertices) {
-                    float dist = glm::distance(vertex.pos, Nodes[0].nodes[i].center);
-                    
-                    if (0 <= glm::dot(vertex.pos, Nodes[0].nodes[i].center) <= 0.5) {
-                        if (dist <= glm::length(Nodes[0].nodes[i].dimensions)) {
-                            
-                            genLayer(Nodes[0].nodes[i]);
-                        }
-                    }
-                    //layerCount++;
-                    //count++;
+    void checkTree(std::vector<Vertex>& vertices, Voxel& Node) {
+        Node.checkVoxel(vertices);
+        if (Node.containsVertex) {
+            for (auto& vertex : Node.vertices) {
+                Voxel child = genChild(vertex, Node);
+                if (currentDepth < maxDepth) {
+                    currentDepth++;
+                    checkTree(vertices, child);
+                }
+                else {
+                    break;
                 }
             }
-            //layerCount++;
+            currentDepth = 1;
         }
     }
-
-    void genResources() {
-        for (auto& node : Nodes[0].nodes) {
-            genResource(node.center, node.dimensions);
-        }
-    }
-    void genResource(glm::vec3 Position, glm::vec3 dimensions) {
-        glm::mat4 modelMatrix(1.f);
-        modelMatrix = glm::translate(glm::scale(modelMatrix, dimensions), Position);
-
-        matrices.push_back(modelMatrix);
-    }
-    void genLayer(Cube& parentNode) {
-        for (int i = 0; i < 8; i++) {
-            glm::vec3 childCenter = parentNode.vertices[i].pos / 1.f;
-            glm::vec3 childDimensions = parentNode.dimensions / 2.f;
-            Cube child(childCenter, childDimensions, (i+1)*8 );
-            parentNode.nodes.push_back(child);
-
-            //Bounds.insert(Bounds.end(), child.vertices.begin(), child.vertices.end());
-            //Indices.insert(Indices.end(), child.indices.begin(), child.indices.end());
-        }
-        
+    Voxel genChild(Vertex& vertex, Voxel& Node) {
+        glm::vec3 center = Node.matrix * glm::vec4((vertex.pos * 0.5f), 1.f);
+        Voxel child(center, 0.5f * Node.dimensions);
+        matrices.push_back(child.matrix);
+        Node.nodes.push_back(child);
+        instanceCount++;
+        return child;
     }
 };
-
 
 #endif

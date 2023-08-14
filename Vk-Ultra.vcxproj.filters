@@ -16,6 +16,15 @@
     <Filter Include="Resource Files\shaders">
       <UniqueIdentifier>{091859f6-e469-4bd9-82a6-c8701a40e738}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Vulkan Engine">
+      <UniqueIdentifier>{6e76af66-4f86-4ccc-929e-f2eea7341735}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Utils">
+      <UniqueIdentifier>{67b7fe29-fd72-4b28-bb4d-b283ecbb66f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Game Objects">
+      <UniqueIdentifier>{92ba5376-57ad-44e0-b4a3-22eef3662c8d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -27,9 +36,6 @@
       <Filter>Resource Files\shaders</Filter>
     </None>
     <None Include="shaders\vertex.frag">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\compile.bat">
       <Filter>Resource Files\shaders</Filter>
     </None>
     <None Include="shaders\point.vert">
@@ -49,41 +55,50 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="VulkanEngine.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanGPL.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanAPI.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanGPU.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Camera.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Model.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DBO.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="helperFunc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SSBO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PhysX.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VulkanEngine.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanGPL.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanGPU.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
     <ClInclude Include="VulkanCPU.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanAPI.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="bufferObjects.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="SSBO.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="UBO.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="Model.h">
+      <Filter>Header Files\Game Objects</Filter>
     </ClInclude>
     <ClInclude Include="Octree.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="descriptors.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="file_system.h">
+      <Filter>Header Files\Utils</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

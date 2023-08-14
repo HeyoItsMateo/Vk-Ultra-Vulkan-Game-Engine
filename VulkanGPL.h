@@ -35,29 +35,21 @@
 //typedef void(__stdcall* vkDestroyFunction)(VkDevice, void ,const VkAllocationCallbacks*);
 
 std::vector<Vertex> vertices = {
-    {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
-
-    {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+    {{-0.5f,  0.5f,  0.5f, 1.f}, {1.0f, 0.0f, 0.0f, 1.f}, {0.0f, 0.0f}},
+    {{ 0.5f,  0.5f,  0.5f, 1.f}, {0.0f, 1.0f, 0.0f, 1.f}, {1.0f, 0.0f}},
+    {{ 0.5f,  0.5f, -0.5f, 1.f}, {0.0f, 0.0f, 1.0f, 1.f}, {1.0f, 1.0f}},
+    {{-0.5f,  0.5f, -0.5f, 1.f}, {1.0f, 1.0f, 1.0f, 1.f}, {0.0f, 1.0f}},
+                        
+    {{-0.5f, -0.5f,  0.5f, 1.f}, {1.0f, 0.0f, 0.0f, 1.f}, {0.0f, 0.0f}},
+    {{ 0.5f, -0.5f,  0.5f, 1.f}, {0.0f, 1.0f, 0.0f, 1.f}, {1.0f, 0.0f}},
+    {{ 0.5f, -0.5f, -0.5f, 1.f}, {0.0f, 0.0f, 1.0f, 1.f}, {1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f, 1.f}, {1.0f, 1.0f, 1.0f, 1.f}, {0.0f, 1.0f}}
 };
 
 const std::vector<uint16_t> indices = {
     0, 1, 2, 2, 3, 0,
     4, 5, 6, 6, 7, 4
 };
-
-typedef Primitive<VK_PRIMITIVE_TOPOLOGY_POINT_LIST> Point;
-//typedef Primitive<VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST> Triangle;
-/*
-struct Particle : Point {
-    glm::vec3 velocity;
-};
-*/
 
 struct VkShader {
     VkShaderModule shaderModule;
@@ -109,10 +101,10 @@ template<VkPipelineBindPoint bindPoint>
 struct VkPipelineBase {
     VkPipeline mPipeline;
     VkPipelineLayout mLayout;
-    VkPipelineBase(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& Sets, std::vector<VkDescriptorSetLayout>& testing) {
+    VkPipelineBase(std::vector<VkDescriptorSet>& Sets, std::vector<VkDescriptorSetLayout>& testing) {
         setCount = Sets.size();
         sets = Sets;
-        std::vector<VkDescriptorSetLayout> layout = packMembers<&VkDescriptor::SetLayout>(descriptors);
+        //std::vector<VkDescriptorSetLayout> layout = packMembers<&VkDescriptor::SetLayout>(descriptors);
         vkLoadSetLayout(testing);
     }
     ~VkPipelineBase() {
@@ -145,8 +137,8 @@ typedef VkPipelineBase<VK_PIPELINE_BIND_POINT_GRAPHICS> GraphicsPipeline;
 
 template<typename T>
 struct VkGraphicsPipeline : GraphicsPipeline {
-    VkGraphicsPipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders, std::vector<VkDescriptorSetLayout>& testing)
-        : GraphicsPipeline(descriptors, sets, testing)
+    VkGraphicsPipeline(std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders, std::vector<VkDescriptorSetLayout>& testing)
+        : GraphicsPipeline(sets, testing)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
@@ -219,8 +211,8 @@ private:
 };
 
 struct VkParticlePipeline : GraphicsPipeline {
-    VkParticlePipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders, std::vector<VkDescriptorSetLayout>& testing)
-        : GraphicsPipeline(descriptors, sets, testing)
+    VkParticlePipeline(std::vector<VkDescriptorSet>& sets, std::vector<VkShader*>& shaders, std::vector<VkDescriptorSetLayout>& testing)
+        : GraphicsPipeline(sets, testing)
     {
         //bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         //TODO: Rewrite 'VkCreatePipeline' to change based on needed vertex input,
@@ -311,8 +303,8 @@ private:
 };
 
 struct VkComputePipeline : VkPipelineBase<VK_PIPELINE_BIND_POINT_COMPUTE> {
-    VkComputePipeline(std::vector<VkDescriptor*>& descriptors, std::vector<VkDescriptorSet>& sets, VkPipelineShaderStageCreateInfo& computeStage, std::vector<VkDescriptorSetLayout>& testing)
-        : VkPipelineBase(descriptors, sets, testing)
+    VkComputePipeline(std::vector<VkDescriptorSet>& sets, VkPipelineShaderStageCreateInfo& computeStage, std::vector<VkDescriptorSetLayout>& testing)
+        : VkPipelineBase(sets, testing)
     {
         vkCreatePipeline(computeStage);
     }

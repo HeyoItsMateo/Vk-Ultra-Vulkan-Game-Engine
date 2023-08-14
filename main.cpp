@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <functional>
 
+#include "file_system.h"
+
 VkWindow window("Vulkan");
 VkGraphicsEngine app;
 
@@ -22,12 +24,10 @@ SSBO modelSSBO(tree.matrices, VK_SHADER_STAGE_VERTEX_BIT);
 
 PhxModel model(vertices, indices);
 
-std::vector<VkDescriptor*> descriptors = { &ubo, &textureSet, &ssbo };
-
-std::vector<VkDescriptorSet> segs = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], ssbo.Sets[VkSwapChain::currentFrame] };
+std::vector<VkDescriptorSet> descSet1 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], ssbo.Sets[VkSwapChain::currentFrame] };
 std::vector<VkDescriptorSetLayout> testing = { ubo.SetLayout, textureSet.SetLayout, ssbo.SetLayout };
 
-std::vector<VkDescriptorSet> segs2 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], modelSSBO.Sets[VkSwapChain::currentFrame] };
+std::vector<VkDescriptorSet> descSet2 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], modelSSBO.Sets[VkSwapChain::currentFrame] };
 std::vector<VkDescriptorSetLayout> testing2 = { ubo.SetLayout, textureSet.SetLayout, modelSSBO.SetLayout };
 
 VkShader vertShader("shaders/vertexVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
@@ -43,34 +43,29 @@ VkShader octreeVert("shaders/octreeVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 VkShader octreeFrag("shaders/octreeFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 std::vector<VkShader*> octreeShaders = { &octreeVert, &octreeFrag };
 
+VkGraphicsPipeline<Vertex> pipeline(descSet1, shaders, testing);
 
-VkGraphicsPipeline<Vertex> pipeline(descriptors, segs, shaders, testing);
+VkGraphicsPipeline<Voxel> octreePPL(descSet2, octreeShaders, testing2);
 
-VkGraphicsPipeline<Voxel> octreePPL(descriptors, segs2, octreeShaders, testing2);
+VkParticlePipeline particlePPL(descSet1, compShaders, testing);
 
-VkParticlePipeline particlePPL(descriptors, segs, compShaders, testing);
+VkComputePipeline computePPL(descSet1, compShader.stageInfo, testing);
 
-VkComputePipeline computePPL(descriptors, segs, compShader.stageInfo, testing);
 
 //TODO: Learn discrete differential geometry
 //TODO: Implement waves~
 //TODO: Optimize the swapchain and rendering process
 //TODO: Optimize a fuckload of stuff with shader caching, pipeline caching, parallelization, etc.
 
-void printMsg(const char* message, size_t value) {
-    std::cout << message << " " << value << std::endl;
-};
-
 VkPhysicalDeviceProperties properties;
-
 
 int main() {
 
     vkGetPhysicalDeviceProperties(VkGPU::physicalDevice, &properties);
 
-    printMsg("maxWorkgroupSize is:", *properties.limits.maxComputeWorkGroupSize);
-    printMsg("maxWorkGroupInvocations is:", properties.limits.maxComputeWorkGroupInvocations);
-    printMsg("maxWorkGroupCount is:", *properties.limits.maxComputeWorkGroupCount);
+    std::printf("maxWorkgroupSize is: %i \n", *properties.limits.maxComputeWorkGroupSize);
+    std::printf("maxWorkGroupInvocations is: %i \n", properties.limits.maxComputeWorkGroupInvocations);
+    std::printf("maxWorkGroupCount is: %i \n", *properties.limits.maxComputeWorkGroupCount);
 
     try {
         app.run(pipeline, octreePPL, model, tree, particlePPL, computePPL, ssbo, ubo, uniforms);

@@ -1,6 +1,5 @@
 #include "VulkanAPI.h"
 
-
 #include <limits>
 #include <algorithm>
 #include <optional>

@@ -1,11 +1,10 @@
 #ifndef hModel
 #define hModel
 
-template<VkPrimitiveTopology topology>
 struct Primitive {
-    const static VkPrimitiveTopology topology = topology;
-    glm::vec3 position;
-    glm::vec3 color;
+    glm::vec4 position;
+    glm::vec4 color;
+    glm::vec2 texCoord;
     
     static VkVertexInputBindingDescription vkCreateBindings() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -17,12 +16,13 @@ struct Primitive {
     }
     static std::vector<VkVertexInputAttributeDescription> vkCreateAttributes() {
         std::vector<VkVertexInputAttributeDescription> Attributes{
-            { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Primitive, position)}, // Position
-            { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Primitive, color) }     // Texture Coordinate
+            { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Primitive, position) }, // Position
+            { 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Primitive, color) },   // Color
+            { 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Primitive, texCoord) }      // Texture Coordinate
         };
         return Attributes;
     }
-    static VkPipelineVertexInputStateCreateInfo vkCreateVertexInput() {
+    VkPipelineVertexInputStateCreateInfo vkCreateVertexInput() {
         static auto bindingDescription = vkCreateBindings();
         static auto attributeDescriptions = vkCreateAttributes();
 
@@ -37,11 +37,11 @@ struct Primitive {
 };
 
 struct Vertex {
-    glm::vec3 pos;
-    glm::vec3 color;
+    glm::vec4 position;
+    glm::vec4 color;
     glm::vec2 texCoord;
-
-    const static VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    
+    inline static VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     static VkVertexInputBindingDescription vkCreateBindings() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -54,7 +54,7 @@ struct Vertex {
 
     static std::vector<VkVertexInputAttributeDescription> vkCreateAttributes() {
         std::vector<VkVertexInputAttributeDescription> Attributes{
-            { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)}, // Position
+            { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)}, // Position
             { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color) }, // Color
             { 2, 0, VK_FORMAT_R32G32_SFLOAT,    offsetof(Vertex, texCoord) }     // Texture Coordinate
         };

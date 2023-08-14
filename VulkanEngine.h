@@ -1,17 +1,6 @@
 #include "VulkanGPL.h"
 
 struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
-    std::vector<Vertex> testVtx = {
-    {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
-
-    {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-    };
     void run(GraphicsPipeline& pipeline0, GraphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, VkParticlePipeline& particlePipeline, VkComputePipeline& computePipeline, SSBO& ssbo, UBO& ubo, Uniforms& uniforms) {
         while (!glfwWindowShouldClose(VkWindow::window)) {
             glfwPollEvents();
@@ -38,6 +27,7 @@ struct VkGraphicsEngine : VkSwapChain, VkEngineCPU {
     }
 protected:
     void updateVtx() {
+        /*
         float cyclicTime = glm::radians(45 * float(lastTime));
         testVtx[0].pos[1] = 0.5f * glm::sin(cyclicTime);
         testVtx[1].pos[1] = 0.5f * glm::cos(cyclicTime);
@@ -48,6 +38,7 @@ protected:
         testVtx[5].pos = {  0.5 + glm::abs(glm::sin(cyclicTime)), -0.5f,  0.5 + glm::abs(glm::sin(cyclicTime)) };
         testVtx[6].pos = {  0.5 + glm::abs(glm::sin(cyclicTime)), -0.5f, -0.5 - glm::abs(glm::sin(cyclicTime)) };
         testVtx[7].pos = { -0.5 - glm::abs(glm::sin(cyclicTime)), -0.5f, -0.5 - glm::abs(glm::sin(cyclicTime)) };
+        */
     }
 
 private:

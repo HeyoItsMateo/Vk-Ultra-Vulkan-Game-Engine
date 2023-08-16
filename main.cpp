@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <functional>
 
-#include "file_system.h"
-
 VkWindow window("Vulkan");
 VkGraphicsEngine app;
 
@@ -30,17 +28,17 @@ std::vector<VkDescriptorSetLayout> testing = { ubo.SetLayout, textureSet.SetLayo
 std::vector<VkDescriptorSet> descSet2 = { ubo.Sets[VkSwapChain::currentFrame], textureSet.Sets[VkSwapChain::currentFrame], modelSSBO.Sets[VkSwapChain::currentFrame] };
 std::vector<VkDescriptorSetLayout> testing2 = { ubo.SetLayout, textureSet.SetLayout, modelSSBO.SetLayout };
 
-VkShader vertShader("shaders/vertexVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-VkShader fragShader("shaders/vertexFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-VkShader compShader("shaders/pointComp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+VkShader vertShader("vertex.vert", VK_SHADER_STAGE_VERTEX_BIT);
+VkShader fragShader("vertex.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
+VkShader compShader("shader.comp", VK_SHADER_STAGE_COMPUTE_BIT);
 std::vector<VkShader*> shaders = { &vertShader, &fragShader };
 
-VkShader pointVert("shaders/pointVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-VkShader pointFrag("shaders/pointFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+VkShader pointVert("point.vert", VK_SHADER_STAGE_VERTEX_BIT);
+VkShader pointFrag("point.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
 std::vector<VkShader*> compShaders = { &pointVert, &pointFrag };
 
-VkShader octreeVert("shaders/octreeVert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-VkShader octreeFrag("shaders/octreeFrag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+VkShader octreeVert("octree.vert", VK_SHADER_STAGE_VERTEX_BIT);
+VkShader octreeFrag("octree.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
 std::vector<VkShader*> octreeShaders = { &octreeVert, &octreeFrag };
 
 VkGraphicsPipeline<Vertex> pipeline(descSet1, shaders, testing);
@@ -60,6 +58,7 @@ VkComputePipeline computePPL(descSet1, compShader.stageInfo, testing);
 VkPhysicalDeviceProperties properties;
 
 int main() {
+    
 
     vkGetPhysicalDeviceProperties(VkGPU::physicalDevice, &properties);
 

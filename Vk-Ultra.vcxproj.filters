@@ -25,6 +25,9 @@
     <Filter Include="Header Files\Game Objects">
       <UniqueIdentifier>{92ba5376-57ad-44e0-b4a3-22eef3662c8d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\bin">
+      <UniqueIdentifier>{58674cf3-8f57-4960-9526-4a1548ba70ef}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -52,6 +55,9 @@
     </None>
     <None Include="shaders\octree.vert">
       <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="bin\shader_log.bin">
+      <Filter>Resource Files\bin</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

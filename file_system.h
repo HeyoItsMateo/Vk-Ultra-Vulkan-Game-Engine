@@ -2,7 +2,7 @@
 #define hFileSystem
 
 #define NOMINMAX
-#define FILE_LOG "shaders/logs/updates.txt"
+#define SHADER_LOG "bin\\shader_log.bin"
 
 #include <Windows.h>
 #include <processthreadsapi.h>
@@ -10,87 +10,75 @@
 #include <format>
 #include <sstream>
 
-#include <map>
-
-static void runExe(const char* executable, char* commandline) {
-    STARTUPINFOA sui = { sizeof(STARTUPINFO) };
-    PROCESS_INFORMATION pi;
-    if (!CreateProcessA(executable, commandline, NULL, NULL, true, 0, NULL, NULL, &sui, &pi)) {
-        std::cout << GetLastError();
-        abort();
+static void compileShader(const std::string& filename) {
+    std::ofstream file("compiler.bat");
+    if (!file)
+    {
+        throw std::runtime_error("Runtime Error: Failed to create batch file!");
     }
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
+
+    std::filesystem::path filepath(filename);
+
+    file << "@echo off\n";
+    file << "C:\\VulkanSDK\\1.3.250.1\\Bin\\glslc.exe ";
+    file << ".\\shaders\\" << filepath.string();
+    file << " -o " << ".\\shaders\\" << filepath.string() << ".spv" << std::flush;
+    file.close();
+
+    std::system("compiler.bat");
+    std::cout << "Shader update completed at " << std::chrono::system_clock::now() + std::chrono::hours(5) << std::endl;
 }
 
-struct VkFile {
-    VkFile(std::string& fileName) {
-        _path = std::filesystem::absolute(".\\shaders\\" + fileName).string();
-        _time = std::format("{}", std::filesystem::last_write_time(_path));
-    }
-public:
-    void update(std::string& last_update_time) {
-        if (last_update_time != _time) {
-            last_update_time = _time;
-            std::string commandline = "-c " + _path + " -o " + _path + ".spv";
-            runExe("C:\\VulkanSDK\\1.3.250.1\\Bin\\glslc.exe", commandline.data());
+static void checkLog(const std::string& filename) {
+    std::string _path = std::filesystem::absolute(".\\shaders\\" + filename).string();
+    std::string last_write = std::format("{}", std::filesystem::last_write_time(_path));
 
-            std::cout << std::format("Shader update completed at {}\n", std::chrono::system_clock::now() + std::chrono::hours(5));
+    //File shaderFile(filename);
+    if (!std::filesystem::exists(SHADER_LOG)) {
+        std::ofstream out(SHADER_LOG, std::ios_base::out | std::ios::binary);
+        if (!out.is_open()) {
+            throw std::runtime_error(std::format("Failed to open {}!", SHADER_LOG));
         }
-    }
-private:
-    std::string _path;
-    std::string _time;
-};
-
-
-static void compileShaderv2(const std::string& filename) {// TODO: Move compiler to the shader object for auto-updating
-    if (!std::filesystem::exists(FILE_LOG)) {
-        std::ofstream(FILE_LOG, std::ios::binary);
-    }
-    std::fstream log(FILE_LOG, std::ios::binary);
-    if (!log.is_open()) {
-        throw std::runtime_error(std::format("Failed to open {}!", FILE_LOG));
+        compileShader(filename);
+        out << filename << '\0';
+        out << last_write << '\0';
+        out.close();
+        return;
     }
 
-    std::pair<std::string, std::filesystem::file_time_type> loggedShader;
-    while (!log.eof()) {
-        log.read(reinterpret_cast<char*>(&loggedShader), sizeof(loggedShader));
-        /*
-        if ((loggedShader.first == shaderFile.first) and (loggedShader.second != shaderFile.second))
-        {
-            std::streampos infoLoc = log.tellg();
-            log.seekg(infoLoc);
-            log.write(reinterpret_cast<const char*>(&shaderFile), sizeof(shaderFile));
-
-            std::string commandline = "-c " + shaderFile.first + " -o " + shaderFile.first + ".spv";
-            runExe("C:\\VulkanSDK\\1.3.250.1\\Bin\\glslc.exe", commandline.data());
-
-            std::cout << std::format("Shader update completed at {}\n", std::chrono::system_clock::now() + std::chrono::hours(5));
-            break;
+    std::fstream out(SHADER_LOG, std::ios_base::out | std::ios_base::in | std::ios::binary);
+    if (!out.is_open()) {
+        throw std::runtime_error(std::format("Failed to open {}!", SHADER_LOG));
+    }
+    out.seekg(std::ios::beg);
+    for (std::string line; std::getline(out, line, '\0');) {
+        if (line == filename) {
+            int loc = out.tellg();
+            std::getline(out, line, '\0');
+            if (line != last_write) {
+                std::cout << std::format("Updating log entry for {}\n", filename);
+                compileShader(filename);
+                out.seekg(loc);
+                out << last_write << '\0';
+            }
+            std::cout << std::format("{} is up to date.\n", filename);
+            out.close();
+            return;
         }
-        */
+        std::getline(out, line, '\0');
     }
-    log.close();
+    out.close();
+
+    compileShader(filename);
+    std::ofstream update(SHADER_LOG, std::ios::out | std::ios::binary |std::ios::app);
+    if (!update.is_open()) {
+        throw std::runtime_error(std::format("Failed to open {}!", SHADER_LOG));
+    }
+    update << filename << '\0';
+    update << last_write << '\0';
+    update.close();
 }
 
-static void compileShader(std::string filename) {// TODO: Move compiler to the shader object for auto-updating
-    if (!std::filesystem::exists(FILE_LOG)) {
-        std::ofstream(FILE_LOG);
-    }
-    std::fstream log;
-    log.open(FILE_LOG);
-    if (!log) {
-        throw std::runtime_error("Failed to open log!");
-    }
-    VkFile shader(filename);
-    
-    std::string loggedTime;
-    std::getline(log, loggedTime);
-    log.seekg(0);
-    shader.update(loggedTime);
-    log << loggedTime << std::flush;
-    log.close();
-}
+
 
 #endif

@@ -146,6 +146,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="bin\shader_log.bin" />
     <None Include="shaders\octree.frag" />
     <None Include="shaders\octree.vert" />
     <None Include="shaders\shader.comp" />

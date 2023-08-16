@@ -27,11 +27,14 @@
 #include "UBO.h"
 #include "SSBO.h"
 
+#include "file_system.h"
 #include "helperFunc.h"
 #include "Octree.h"
 
 #include "descriptors.h"
 #include "bufferObjects.h"
+
+
 //typedef void(__stdcall* vkDestroyFunction)(VkDevice, void ,const VkAllocationCallbacks*);
 
 std::vector<Vertex> vertices = {
@@ -56,9 +59,17 @@ struct VkShader {
     VkPipelineShaderStageCreateInfo stageInfo
     { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
     VkShader(const std::string& filename, VkShaderStageFlagBits shaderStage) {
-        auto shaderCode = readFile(filename);
-        createShaderModule(shaderCode);
+        
+        try {
+            std::filesystem::path filepath(filename);
+            checkLog(filename);
 
+            auto shaderCode = readFile(".\\shaders\\" + filename + ".spv");
+            createShaderModule(shaderCode);
+        }
+        catch (const std::exception& e) {
+            std::cerr << e.what() << std::endl;
+        }
         stageInfo.stage = shaderStage;
         stageInfo.module = shaderModule;
         stageInfo.pName = "main";
@@ -82,7 +93,7 @@ private:
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
         if (!file.is_open()) {
-            throw std::runtime_error("failed to open file!");
+            throw std::runtime_error(std::format("failed to open {}!", filename));
         }
 
         size_t fileSize = (size_t)file.tellg();
@@ -95,6 +106,8 @@ private:
 
         return buffer;
     }
+
+
 };
 
 template<VkPipelineBindPoint bindPoint>

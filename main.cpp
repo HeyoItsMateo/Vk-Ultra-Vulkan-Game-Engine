@@ -67,6 +67,7 @@ int main() {
     std::printf("maxWorkGroupCount is: %i \n", *properties.limits.maxComputeWorkGroupCount);
 
     try {
+        //runProcess("shader.comp");
         app.run(pipeline, octreePPL, model, tree, particlePPL, computePPL, ssbo, ubo, uniforms);
     }
     catch (const std::exception& e) {

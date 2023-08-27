@@ -2,6 +2,35 @@
 #define hOctree
 
 #include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/hash.hpp>
+#include <bitset>
+
+std::unordered_map<glm::vec4, std::bitset<8>> octreeMap = {
+            { { 1, 1, 1, 1}, 0b10000000 },
+            { {-1, 1, 1, 1}, 0b01000000 },
+            { {-1,-1, 1, 1}, 0b00100000 },
+            { { 1,-1, 1, 1}, 0b00010000 },
+
+            { { 1, 1,-1, 1}, 0b00001000 },
+            { {-1, 1,-1, 1}, 0b00000100 },
+            { {-1,-1,-1, 1}, 0b00000010 },
+            { { 1,-1,-1, 1}, 0b00000001 },
+
+            { { 0, 0, 0, 1}, 0b00000000 },
+            { { 1, 0, 0, 1}, 0b10011001 },
+            { {-1, 0, 0, 1}, 0b01100110 },
+            { { 0, 1, 0, 1}, 0b11001100 },
+            { { 0,-1, 0, 1}, 0b00110011 },
+            { { 0, 0, 1, 1}, 0b11110000 },
+            { { 0, 0,-1, 1}, 0b00001111 },
+            
+            
+            { { 0, 0,-1, 1}, 0b00001111 },
+            { { 0, 1, 1, 1}, 0b11000000 },
+            { { 0,-1, 1, 1}, 0b00110000 },
+            { { 1, 0, 1, 1}, 0b10010000 },
+            { {-1, 0, 1, 1}, 0b01100000 },
+};
 
 struct Voxel : Vertex {
     std::vector<Voxel> nodes;
@@ -111,8 +140,7 @@ private:
         }
         matrices.push_back(Root.matrix);
         currentDepth++;
-    }
-    
+    }    
     void checkTree(std::vector<T>& vertices, Voxel& Node, int depth) {
         Node.checkVoxel(vertices);
         if (Node.containsVertex) {
@@ -136,6 +164,104 @@ private:
         instanceCount++;
         return child;
     }
+
+    inline static std::unordered_map<glm::vec4, std::bitset<8>> map = {
+            { { 1, 1, 1, 1}, 0b10000000 },
+            { {-1, 1, 1, 1}, 0b01000000 },
+            { {-1,-1, 1, 1}, 0b00100000 },
+            { { 1,-1, 1, 1}, 0b00010000 },
+
+            { { 1, 1,-1, 1}, 0b00001000 },
+            { {-1, 1,-1, 1}, 0b00000100 },
+            { {-1,-1,-1, 1}, 0b00000010 },
+            { { 1,-1,-1, 1}, 0b00000001 },
+
+            { { 0, 0, 0, 1}, 0b00000000 },
+            { { 1, 0, 0, 1}, 0b10011001 },
+            { {-1, 0, 0, 1}, 0b01100110 },
+            { { 0, 1, 0, 1}, 0b11001100 },
+            { { 0,-1, 0, 1}, 0b00110011 },
+            { { 0, 0, 1, 1}, 0b11110000 },
+            { { 0, 0,-1, 1}, 0b00001111 },
+
+            { { 1, 1, 0, 1}, 0b10001000 },
+            { {-1, 1, 0, 1}, 0b01000100 },
+            { {-1,-1, 0, 1}, 0b00100010 },
+            { { 1,-1, 0, 1}, 0b00010001 },
+
+            { { 0, 1, 1, 1}, 0b11000000 },
+            { { 0,-1, 1, 1}, 0b00110000 },
+            { { 0, 1,-1, 1}, 0b00001100 },
+            { { 0,-1,-1, 1}, 0b00000011 },
+
+            { { 1, 0, 1, 1}, 0b10010000 },
+            { {-1, 0, 1, 1}, 0b01100000 },
+            { {-1, 0,-1, 1}, 0b00000110 },
+            { { 1, 0,-1, 1}, 0b00001001 },
+    };
+};
+
+template <typename T>
+struct biOctree {
+    std::bitset<8> node;
+    std::array<biOctree, 8> leaves;
+
+    glm::vec4 center{ 0.f };
+    float dimensions;
+
+    inline biOctree(std::vector<T>& vertices) {
+        init_Root(vertices);
+        for (auto& vertex : vertices) {
+            if (checkVertex(vertex)) {
+
+            }
+        }
+        for (int i = 0; i < node.size(); i++) {
+            if (node[i]) {
+
+            }
+        }
+    }
+    bool checkVertex(T& vertex) {
+        float phi, theta;
+        // TODO: 
+        //   solve vertex position for phi and theta, then
+        //   use phi and theta to find quadrant location. finally,
+        //   update bitset to reflect vertex containing quadrant.
+        // TODO:
+        //   or convert vertex coordinates to octree coordinates
+        //   and find the octant that way. Probably faster imo.
+        float dist = glm::distance(vertex.position, center);
+        float dotp = glm::dot(center, vertex.position);
+
+        if ((0.5 <= dotp <= 1.5) and (dist <= dimensions)) {
+            return true;
+        }
+        return false;
+    }
+
+    void init_Root(std::vector<T>& vertices, float minSize, float rootScale)
+    {// Generates the dimensions of the root node and creates the root node.
+        float numVerts = 1;
+        glm::vec4 sumPos(0.f);
+        for (Vertex& vtx : vertices) {
+            sumPos += vtx.position;
+            center = sumPos / numVerts;
+            if (glm::distance(vtx.position, center) > minSize) {
+                minSize = glm::distance(vtx.position, center);
+            }
+            numVerts += 1;
+        }
+        dimensions = minSize * rootScale;
+    }
+};
+
+std::unordered_map<glm::vec4, std::bitset<4>> quadtreeMap = {
+    { { 1, 1, 0, 1},{0b0001} },
+    { {-1, 1, 0, 1},{0b0010} },
+    { { 1,-1, 0, 1},{0b0100} },
+    { {-1,-1, 0, 1},{0b1000} },
+    { { 0, 0, 0, 1},{0b0000} }
 };
 
 #endif

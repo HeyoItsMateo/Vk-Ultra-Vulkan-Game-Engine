@@ -1,3 +1,5 @@
+#pragma once
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -13,10 +15,6 @@
 #include <vector>
 #include <array>
 
-bool hasStencilComponent(VkFormat format) {
-    return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-    }
-
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -24,21 +22,13 @@ const bool enableValidationLayers = true;
 #endif
 
 const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
+
 namespace vk {
     struct Window {
         inline static GLFWwindow* handle; //GLFW window handle
         inline static bool framebufferResized = false;
 
-        Window(const char* windowName, uint32_t WIDTH = 800, uint32_t HEIGHT = 600)
-        {// Initialize and open application window
-            glfwInit();
-
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-            handle = glfwCreateWindow(WIDTH, HEIGHT, windowName, nullptr, nullptr);
-            glfwSetWindowUserPointer(handle, this);
-            glfwSetFramebufferSizeCallback(handle, framebufferResizeCallback);
-        }
+        Window(const char* windowName, uint32_t WIDTH = 800, uint32_t HEIGHT = 600);
         ~Window()
         {// Destroy the structure and free memory resources
             glfwDestroyWindow(handle);

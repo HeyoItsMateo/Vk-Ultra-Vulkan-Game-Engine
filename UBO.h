@@ -3,7 +3,7 @@
 
 namespace vk {
     struct Uniforms {
-        float dt = 1.f;
+        double dt = 1.0;
         alignas(16) glm::mat4 model = glm::mat4(1.f);
         Camera camera;
         void update(double lastTime, float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {

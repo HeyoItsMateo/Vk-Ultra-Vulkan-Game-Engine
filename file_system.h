@@ -40,7 +40,7 @@ protected:
         log.seekg(std::ios::beg);
         for (std::string line; std::getline(log, line, '\0');) {
             if (line == filename) {
-                int loc = log.tellg();
+                int loc = static_cast<int>(log.tellg());
                 std::getline(log, line, '\0');
                 if (line != last_write) {
                     std::cout << std::format("Updating log entry for {}\n", filename);
@@ -127,7 +127,7 @@ static void checkLog(const std::string& filename) {
     out.seekg(std::ios::beg);
     for (std::string line; std::getline(out, line, '\0');) {
         if (line == filename) {
-            int loc = out.tellg();
+            int loc = static_cast<int>(out.tellg());
             std::getline(out, line, '\0');
             if (line != last_write) {
                 std::cout << std::format("Updating log entry for {}\n", filename);

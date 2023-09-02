@@ -97,7 +97,7 @@ namespace vk {
         VkPipeline mPipeline;
         VkPipelineLayout mLayout;
         PipelineBase(std::vector<VkDescriptorSet>& Sets, std::vector<VkDescriptorSetLayout>& testing) {
-            setCount = Sets.size();
+            setCount = static_cast<uint32_t>(Sets.size());
             sets = Sets;
             //std::vector<VkDescriptorSetLayout> layout = packMembers<&VkDescriptor::SetLayout>(descriptors);
             vkLoadSetLayout(testing);

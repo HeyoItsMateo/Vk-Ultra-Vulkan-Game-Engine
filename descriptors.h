@@ -19,7 +19,7 @@ namespace vk {
         VkDescriptorType Type;
         VkDescriptorPool Pool;
         template <typename T>
-        inline VkWriteDescriptorSet writeSet(std::vector<T>& bufferInfo, std::array<size_t, 2> dst) {
+        inline VkWriteDescriptorSet writeSet(std::vector<T>& bufferInfo, std::array<uint32_t, 2> dst) {
             VkWriteDescriptorSet writeInfo
             { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
             writeInfo.dstSet = Sets[dst[0]];
@@ -56,7 +56,7 @@ namespace vk {
         }
         void createDescriptorSetLayout(VkDescriptorType& type, VkShaderStageFlags& flag, uint32_t bindingCount) {
             std::vector<VkDescriptorSetLayoutBinding> layoutBindings(bindingCount);
-            for (size_t i = 0; i < bindingCount; i++) {
+            for (uint32_t i = 0; i < bindingCount; i++) {
                 layoutBindings[i].binding = i;
                 layoutBindings[i].descriptorCount = 1;
                 layoutBindings[i].descriptorType = type;
@@ -100,9 +100,9 @@ namespace vk {
         void writeDescriptorSets(Texture& texture, uint32_t bindingCount = 1) {
             std::vector<VkDescriptorImageInfo> imageInfo(bindingCount);
             std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount);
-            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 
-                for (size_t j = 0; j < bindingCount; j++) {
+                for (uint32_t j = 0; j < bindingCount; j++) {
                     imageInfo[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                     imageInfo[j].imageView = texture.ImageView; // TODO: Generalize
                     imageInfo[j].sampler = texture.Sampler; // TODO: Generalize

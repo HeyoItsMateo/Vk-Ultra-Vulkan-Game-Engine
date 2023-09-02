@@ -55,7 +55,7 @@ public:
             float dist = glm::distance(vertex.position, center);
             float dotp = glm::dot(center, vertex.position);
 
-            if ((0.5 <= dotp <= 1.5) and (dist <= glm::length(dimensions))) {
+            if ((0.5f <= dotp <= 1.5f) and (dist <= glm::length(dimensions))) {
                 containsVertex = true;
                 break;
             }
@@ -88,8 +88,8 @@ private:
         indices[7] = 0;
         indices[15] = 4;
         for (int x = 0; x < 7; x++) {
-            indices[x] = floor((x + 1) / 2);
-            indices[x + 8] = floor((x + 1) / 2) + 4;
+            indices[x] = static_cast<uint16_t>(floor((x + 1) / 2));
+            indices[x + 8] = static_cast<uint16_t>(floor((x + 1) / 2) + 4);
         }
         int temp0 = 4, temp1 = 0;
         for (int x = 16; x < 24; x += 2) {

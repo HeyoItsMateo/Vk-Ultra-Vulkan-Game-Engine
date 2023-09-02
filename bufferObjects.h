@@ -110,10 +110,10 @@ namespace vk {
             std::vector<VkDescriptorBufferInfo> bufferInfo(bindingCount);
             std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount);
 
-            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
                 bufferInfo[0].buffer = Buffer[i];
 
-                for (size_t j = 0; j < bindingCount; j++) {
+                for (uint32_t j = 0; j < bindingCount; j++) {
                     bufferInfo[j].offset = 0;
                     bufferInfo[j].range = bufferSize;
                     descriptorWrites[j] = writeSet(bufferInfo, { i, j });
@@ -176,11 +176,11 @@ namespace vk {
             std::vector<VkDescriptorBufferInfo> bufferInfo(bindingCount);
             std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount);
 
-            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
                 bufferInfo[0].buffer = Buffer[(i - 1) % MAX_FRAMES_IN_FLIGHT];
                 bufferInfo[1].buffer = Buffer[i];
 
-                for (size_t j = 0; j < bindingCount; j++) {
+                for (uint32_t j = 0; j < bindingCount; j++) {
                     bufferInfo[j].offset = 0;
                     bufferInfo[j].range = bufferSize;
 

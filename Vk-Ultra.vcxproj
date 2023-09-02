@@ -210,11 +210,11 @@
     <ClInclude Include="PhysX.h" />
     <ClInclude Include="SSBO.h" />
     <ClInclude Include="Model.h" />
-    <ClInclude Include="VulkanCPU.h" />
-    <ClInclude Include="VulkanEngine.h" />
-    <ClInclude Include="VulkanGPL.h" />
-    <ClInclude Include="VulkanAPI.h" />
-    <ClInclude Include="VulkanGPU.h" />
+    <ClInclude Include="vk.cpu.h" />
+    <ClInclude Include="vk.engine.h" />
+    <ClInclude Include="vk.graphics.h" />
+    <ClInclude Include="vk.instance.h" />
+    <ClInclude Include="vk.gpu.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

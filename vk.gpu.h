@@ -1,4 +1,4 @@
-#include "VulkanAPI.h"
+#include "vk.instance.h"
 
 #include <limits>
 #include <algorithm>
@@ -10,7 +10,7 @@ const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_N
 const int MAX_FRAMES_IN_FLIGHT = 1;
 
 namespace vk {
-    struct GPU : VulkanAPI {
+    struct GPU : Instance {
         inline static VkDevice device;
         inline static VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
         inline static VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;

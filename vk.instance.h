@@ -53,17 +53,17 @@ namespace vk {
 
     };
 
-    struct VulkanAPI {
+    struct Instance {
         inline static VkInstance instance;
         inline static VkSurfaceKHR surface;
         VkDebugUtilsMessengerEXT debugMessenger;
 
-        VulkanAPI() {
+        Instance() {
             createInstance();
             setupDebugMessenger();
             createSurface();
         }
-        ~VulkanAPI() {
+        ~Instance() {
             if (enableValidationLayers) {
                 DestroyDebugUtilsMessengerEXT(nullptr);
             }

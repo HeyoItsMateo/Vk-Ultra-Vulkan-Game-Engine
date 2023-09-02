@@ -16,8 +16,8 @@
 #include <chrono>
 #include <random>
 
-#include "VulkanGPU.h"
-#include "VulkanCPU.h"
+#include "vk.gpu.h"
+#include "vk.cpu.h"
 
 #include "PhysX.h"
 

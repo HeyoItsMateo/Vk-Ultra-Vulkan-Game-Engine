@@ -2,18 +2,13 @@
 #define hDescriptors
 
 namespace vk {
-    struct Descriptor {
+    struct descriptor {
         VkDescriptorSetLayout SetLayout;
         std::vector<VkDescriptorSet> Sets;
-        Descriptor(VkDescriptorType type, VkShaderStageFlags flag, uint32_t bindingCount) {
-            Type = type;
-            createDescriptorPool(type, bindingCount);
-            createDescriptorSetLayout(type, flag, bindingCount);
-            allocateDescriptorSets();
-        }
-        ~Descriptor() {
-            vkDestroyDescriptorPool(GPU::device, Pool, nullptr);
-            vkDestroyDescriptorSetLayout(GPU::device, SetLayout, nullptr);
+        descriptor(VkDescriptorType type, VkShaderStageFlags flag, uint32_t bindingCount);
+        ~descriptor() {
+            vkDestroyDescriptorPool(VkGPU::device, Pool, nullptr);
+            vkDestroyDescriptorSetLayout(VkGPU::device, SetLayout, nullptr);
         }
     protected:
         VkDescriptorType Type;
@@ -49,7 +44,7 @@ namespace vk {
             poolInfo.pPoolSizes = &poolSizes;
             poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
-            if (vkCreateDescriptorPool(GPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
+            if (vkCreateDescriptorPool(VkGPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create descriptor pool!");
             }
 
@@ -69,7 +64,7 @@ namespace vk {
             layoutInfo.bindingCount = bindingCount;
             layoutInfo.pBindings = layoutBindings.data();
 
-            if (vkCreateDescriptorSetLayout(GPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
+            if (vkCreateDescriptorSetLayout(VkGPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create descriptor set layout!");
             }
         }
@@ -83,17 +78,17 @@ namespace vk {
             allocInfo.pSetLayouts = layouts.data();
 
             Sets.resize(MAX_FRAMES_IN_FLIGHT);
-            if (vkAllocateDescriptorSets(GPU::device, &allocInfo, Sets.data()) != VK_SUCCESS) {
+            if (vkAllocateDescriptorSets(VkGPU::device, &allocInfo, Sets.data()) != VK_SUCCESS) {
                 throw std::runtime_error("failed to allocate descriptor sets!");
             }
         }
     };
 
-    struct TextureSet : Descriptor {
+    struct VkTextureSet : descriptor {
         VkDescriptorType mType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         VkShaderStageFlagBits mFlag = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-        TextureSet(Texture& texture) : Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) {
+        VkTextureSet(Texture& texture) : descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) {
             writeDescriptorSets(texture, 1);
         }
 
@@ -108,14 +103,11 @@ namespace vk {
                     imageInfo[j].sampler = texture.Sampler; // TODO: Generalize
                     descriptorWrites[j] = writeSet(imageInfo, { i,j });
                 }
-                vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
+                vkUpdateDescriptorSets(VkGPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
             }
         }
     };
 }
-
-
-
 
 
 #endif

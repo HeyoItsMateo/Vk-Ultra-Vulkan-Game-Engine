@@ -107,7 +107,7 @@ private:
 };
 
 template <typename T>
-struct Octree : GameObject {
+struct Octree : vk::GameObject {
     std::vector<Voxel> Nodes;
     std::vector<glm::mat4> matrices;
     //int maxInstances = 128;

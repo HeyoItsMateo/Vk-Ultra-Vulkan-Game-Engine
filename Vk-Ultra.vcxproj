@@ -80,19 +80,20 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.250.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.261.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\VulkanSDK\1.3.250.1\Lib;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
+      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
-      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -109,7 +110,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.250.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.261.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -118,12 +119,13 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\VulkanSDK\1.3.250.1\Lib;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
+      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
-      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -138,19 +140,20 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.250.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.261.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\VulkanSDK\1.3.250.1\Lib;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
+      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
-      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -167,7 +170,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.250.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.261.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -176,12 +179,13 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\VulkanSDK\1.3.250.1\Lib;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
+      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
-      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -192,34 +196,64 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="vk.gpu.cpp" />
+    <ClCompile Include="vk.graphics.cpp" />
     <ClCompile Include="vk.instance.cpp" />
+    <ClCompile Include="vk.swapchain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\shader_log.bin" />
-    <None Include="shaders\octree.frag" />
-    <None Include="shaders\octree.vert" />
-    <None Include="shaders\shader.comp" />
-    <None Include="shaders\vertex.frag" />
-    <None Include="shaders\vertex.vert" />
-    <None Include="shaders\point.frag" />
-    <None Include="shaders\point.vert" />
+    <None Include="shaders\glsl\octree.frag" />
+    <None Include="shaders\glsl\octree.vert" />
+    <None Include="shaders\glsl\point.comp" />
+    <None Include="shaders\glsl\point.frag" />
+    <None Include="shaders\glsl\point.vert" />
+    <None Include="shaders\glsl\shader.comp" />
+    <None Include="shaders\glsl\vertex.frag" />
+    <None Include="shaders\glsl\vertex.vert" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="bufferObjects.h" />
+    <ClInclude Include="Buffers.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="file_system.h" />
+    <ClInclude Include="Pipeline.h" />
+    <ClInclude Include="Primitives.h" />
+    <ClInclude Include="Textures.h" />
     <ClInclude Include="UBO.h" />
     <ClInclude Include="descriptors.h" />
     <ClInclude Include="helperFunc.h" />
     <ClInclude Include="Octree.h" />
-    <ClInclude Include="PhysX.h" />
     <ClInclude Include="SSBO.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="vk.cpu.h" />
     <ClInclude Include="vk.engine.h" />
     <ClInclude Include="vk.graphics.h" />
+    <ClInclude Include="vk.image.h" />
     <ClInclude Include="vk.instance.h" />
     <ClInclude Include="vk.gpu.h" />
+    <ClInclude Include="vk.swapchain.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="shaders\hlsl\pixel_frag.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</AllResourcesBound>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\vertex_vert.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

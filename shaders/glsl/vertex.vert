@@ -2,8 +2,10 @@
 
 layout(location = 0) in vec4 inPosition;
 layout(location = 1) in vec4 inColor;
+layout(location = 2) in vec2 inTexCoord;
 
 layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec2 fragTexCoord;
 
 struct camera{
     mat4 view;
@@ -12,14 +14,13 @@ struct camera{
 };
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
-    float dt;
+    double dt;
     mat4 model;
-    camera cam;  
+    camera cam; 
 } ubo;
 
 void main() {
-    float testDist = distance(ubo.cam.position, inPosition.xyz);
-    gl_PointSize = 2 / (testDist*testDist + 0.01f);
-    gl_Position = ubo.cam.proj * ubo.cam.view * inPosition;
-    fragColor = vec4(inColor.rgb, 1.f);
+    gl_Position = ubo.cam.proj * ubo.cam.view * ubo.model * inPosition;
+    fragColor = inColor;
+    fragTexCoord = inTexCoord;
 }

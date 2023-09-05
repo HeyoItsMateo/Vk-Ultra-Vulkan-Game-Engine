@@ -7,10 +7,11 @@
 #include <filesystem>
 #include <format>
 #include <sstream>
+#include <chrono>
 
 struct SPIRV {
     SPIRV(const std::string& filename) {
-        std::string _path = std::filesystem::absolute(".\\shaders\\" + filename).string();
+        std::string _path = std::filesystem::absolute(".\\shaders\\glsl\\" + filename).string();
         last_write = std::format("{}", std::filesystem::last_write_time(filename));
 
         if (!std::filesystem::exists(SHADER_LOG)) {
@@ -95,8 +96,8 @@ static void compileGLSL(const std::string& filename) {
     std::filesystem::path filepath(filename);
 
     file << "@echo off\n";
-    file << "C:\\VulkanSDK\\1.3.250.1\\Bin\\glslc.exe ";
-    file << ".\\shaders\\" << filepath.string();
+    file << "C:\\VulkanSDK\\1.3.261.1\\Bin\\glslc.exe ";
+    file << ".\\shaders\\glsl\\" << filepath.string();
     file << " -o .\\shaders\\" << filepath.string() << ".spv" << std::endl;
     file.close();
 
@@ -105,7 +106,7 @@ static void compileGLSL(const std::string& filename) {
 }
 
 static void checkLog(const std::string& filename) {
-    std::string _path = std::filesystem::absolute(".\\shaders\\" + filename).string();
+    std::string _path = std::filesystem::absolute(".\\shaders\\glsl\\" + filename).string();
     std::string last_write = std::format("{}", std::filesystem::last_write_time(_path));
 
     //File shaderFile(filename);
@@ -118,6 +119,10 @@ static void checkLog(const std::string& filename) {
         out << filename << '\0';
         out << last_write << '\0';
         out.close();
+        return;
+    }
+    if (!std::filesystem::exists(".\\shaders\\" + filename + ".spv")) {
+        compileGLSL(filename);
         return;
     }
     std::fstream out(SHADER_LOG, std::ios_base::out | std::ios_base::in | std::ios::binary);

@@ -22,7 +22,7 @@ layout(set = 2, binding = 1) buffer outSSBO {
 } oSSBO;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
-    float dt;
+    double dt;
     mat4 model;
     camera cam; 
 } UBO;

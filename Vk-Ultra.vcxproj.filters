@@ -28,63 +28,60 @@
     <Filter Include="Resource Files\bin">
       <UniqueIdentifier>{58674cf3-8f57-4960-9526-4a1548ba70ef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\shaders\glsl">
+      <UniqueIdentifier>{8133d8c2-80f0-4827-9551-2230742f1eb0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\hlsl">
+      <UniqueIdentifier>{602a3008-42c8-4f87-b1de-dec27e3bf9f4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vk.gpu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.instance.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.swapchain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.graphics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\vertex.vert">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\vertex.frag">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\point.vert">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\point.frag">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\shader.comp">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\octree.frag">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="shaders\octree.vert">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
     <None Include="bin\shader_log.bin">
       <Filter>Resource Files\bin</Filter>
     </None>
+    <None Include="shaders\glsl\octree.frag">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\octree.vert">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\point.comp">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\point.frag">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\point.vert">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\shader.comp">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\vertex.frag">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\vertex.vert">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="helperFunc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="PhysX.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanEngine.h">
-      <Filter>Header Files\Vulkan Engine</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanGPL.h">
-      <Filter>Header Files\Vulkan Engine</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanGPU.h">
-      <Filter>Header Files\Vulkan Engine</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanCPU.h">
-      <Filter>Header Files\Vulkan Engine</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanAPI.h">
-      <Filter>Header Files\Vulkan Engine</Filter>
-    </ClInclude>
-    <ClInclude Include="bufferObjects.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
     <ClInclude Include="SSBO.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
@@ -106,5 +103,49 @@
     <ClInclude Include="file_system.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="vk.swapchain.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.cpu.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.engine.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.gpu.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.graphics.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.image.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.instance.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Buffers.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Primitives.h">
+      <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="Textures.h">
+      <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="helperFunc.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Pipeline.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="shaders\hlsl\vertex_vert.hlsl">
+      <Filter>Resource Files\shaders\hlsl</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\pixel_frag.hlsl">
+      <Filter>Resource Files\shaders\hlsl</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

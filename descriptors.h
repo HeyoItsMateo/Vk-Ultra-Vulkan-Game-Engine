@@ -88,30 +88,6 @@ namespace vk {
             }
         }
     };
-
-    struct TextureSet : Descriptor {
-        VkDescriptorType mType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        VkShaderStageFlagBits mFlag = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        TextureSet(Texture& texture) : Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) {
-            writeDescriptorSets(texture, 1);
-        }
-
-        void writeDescriptorSets(Texture& texture, uint32_t bindingCount = 1) {
-            std::vector<VkDescriptorImageInfo> imageInfo(bindingCount);
-            std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount);
-            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-
-                for (uint32_t j = 0; j < bindingCount; j++) {
-                    imageInfo[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                    imageInfo[j].imageView = texture.ImageView; // TODO: Generalize
-                    imageInfo[j].sampler = texture.Sampler; // TODO: Generalize
-                    descriptorWrites[j] = writeSet(imageInfo, { i,j });
-                }
-                vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
-            }
-        }
-    };
 }
 
 

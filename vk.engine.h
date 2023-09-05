@@ -1,5 +1,10 @@
 #include "vk.graphics.h"
 
+#include "UBO.h"
+#include "SSBO.h"
+
+#include <chrono>
+
 namespace vk {
     void userInput(GLFWwindow* window, int key, int scancode, int action, int mods)
     {// Sets Keyboard Commands
@@ -26,29 +31,20 @@ namespace vk {
     }
 
     struct Engine : SwapChain, EngineCPU {
-        void run(graphicsPipeline& pipeline0, graphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, ParticlePipeline& particlePipeline, ComputePipeline& computePipeline, SSBO& ssbo, UBO& ubo, Uniforms& uniforms) {
-            while (!glfwWindowShouldClose(Window::handle)) {
-                glfwPollEvents();
-                std::jthread t1(glfwSetKeyCallback, Window::handle, userInput);
-                std::jthread t2(&Engine::deltaTime, this);
+        void run(Pipeline& pipeline0, Pipeline& pipeline1, GameObject& gameObject0, GameObject& octree, ParticlePipeline& particlePipeline, ComputePipeline& computePipeline, SSBO& ssbo, UBO& ubo, Uniforms& uniforms) {
+            std::jthread t1(&Engine::deltaTime, this);
 
-                ubo.update(uniforms);
+            uint32_t imageIndex;
+            vkAquireImage(imageIndex);
+            // Compute Queue
+            runCompute(computePipeline);
+            // Render Queue
+            renderScene(pipeline0, pipeline1, gameObject0, octree, particlePipeline, ssbo, imageIndex);
 
-                uint32_t imageIndex;
-                vkAquireImage(imageIndex);
+            vkSubmitGraphicsQueue();
+            vkPresentImage(imageIndex);
 
-                // Compute Queue
-                runCompute(computePipeline);
-
-                // Render Queue
-                renderScene(pipeline0, pipeline1, gameObject0, gameObject1, particlePipeline, ssbo, imageIndex);
-
-                vkSubmitGraphicsQueue();
-                vkPresentImage(imageIndex);
-
-                currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-            }
-            vkDeviceWaitIdle(device);
+            currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         }
     protected:
         void updateVtx() {
@@ -72,12 +68,12 @@ namespace vk {
             pipeline.run();
             vkSubmitComputeQueue();
         }
-        void renderScene(graphicsPipeline& pipeline0, graphicsPipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, ParticlePipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
+        void renderScene(Pipeline& pipeline0, Pipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, ParticlePipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
             vkRenderSync();
             beginRender(imageIndex);
 
             particlePipeline.bind();
-            particlePipeline.draw(ssbo.Buffer[currentFrame]);
+            ssbo.draw(1000);
 
             pipeline0.bind();
             gameObject0.draw();

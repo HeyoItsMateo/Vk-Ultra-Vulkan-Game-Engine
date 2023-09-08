@@ -9,13 +9,258 @@
 #include "descriptors.h"
 
 namespace vk {
-    struct Texture : Image, Command {
+    template<VkShaderStageFlagBits shaderStage = VK_SHADER_STAGE_FRAGMENT_BIT>
+    struct Sampler {
+        VkSampler sampler;
+        Sampler(float mipLevels) {
+            VkPhysicalDeviceProperties properties{};
+            vkGetPhysicalDeviceProperties(GPU::physicalDevice, &properties);
+
+            VkSamplerCreateInfo samplerInfo
+            { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+            samplerInfo.magFilter = VK_FILTER_LINEAR;
+            samplerInfo.minFilter = VK_FILTER_LINEAR;
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.anisotropyEnable = VK_TRUE;
+            samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+            samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            samplerInfo.unnormalizedCoordinates = VK_FALSE;
+            samplerInfo.compareEnable = VK_FALSE;
+            samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            samplerInfo.minLod = 0.f;
+            samplerInfo.maxLod = mipLevels;
+            samplerInfo.mipLodBias = 0.0f; // Optional
+
+            if (vkCreateSampler(GPU::device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create texture sampler!");
+            }
+        }
+        ~Sampler() {
+            vkDestroySampler(GPU::device, sampler, nullptr);
+            delete sampler;
+        }
+    };
+
+    struct Texture_ : Image, Command {
+        uint32_t mipLevels;
+        VkExtent2D extent;
+        Texture_(const char* filename)
+        {
+            createImage(Image, ImageMemory, VK_FORMAT_R8G8B8A8_SRGB, tiling,
+                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                properties);
+
+
+            stbi_uc* pixels = stbi_load(filename, (int*)&extent.width, (int*)&extent.height, &texChannels, STBI_rgb_alpha);
+            VkDeviceSize imageSize = extent.width * extent.height * 4;
+            mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(extent.width, extent.height)))) + 1;
+
+            if (!pixels) {
+                throw std::runtime_error("failed to load texture image!");
+            }
+
+            StageBuffer stagePixels(pixels, imageSize);
+            stbi_image_free(pixels);
+
+            transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            copyBufferToImage(stagePixels.buffer);
+            generateMipmaps(VK_FORMAT_R8G8B8A8_SRGB);
+
+            createImageView(Image, ImageView, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+        }
+        ~Texture_() {
+            delete &mipLevels;
+        }
+    public:
+        static VkBufferImageCopy createCopyInfo(VkExtent2D extent) {
+            VkBufferImageCopy region{};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = { 0, 0, 0 };
+            region.imageExtent = { extent.width, extent.height, 1 };
+            return region;
+        }
+    private:
+        int texChannels;
+        void transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+            beginCommand();
+
+            VkImageMemoryBarrier barrier
+            { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+            barrier.oldLayout = oldLayout;
+            barrier.newLayout = newLayout;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = Image;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseMipLevel = 0;
+            barrier.subresourceRange.levelCount = mipLevels;
+            barrier.subresourceRange.baseArrayLayer = 0;
+            barrier.subresourceRange.layerCount = 1;
+
+            VkPipelineStageFlags sourceStage;
+            VkPipelineStageFlags destinationStage;
+
+            if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+                barrier.srcAccessMask = 0;
+                barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+                sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            }
+            else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+                barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+                sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+                destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            }
+            else {
+                throw std::invalid_argument("unsupported layout transition!");
+            }
+
+            vkCmdPipelineBarrier(
+                Command::cmdBuffer,
+                sourceStage, destinationStage,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier
+            );
+
+            endCommand();
+        }
+        void copyBufferToImage(VkBuffer& buffer) {
+            beginCommand();
+
+            VkBufferImageCopy copyInfo = createCopyInfo(extent);
+
+            vkCmdCopyBufferToImage(Command::cmdBuffer, buffer, Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyInfo);
+
+            endCommand();
+        }
+
+        void generateMipmaps(VkFormat imageFormat) {
+            // Check if image format supports linear blitting
+            VkFormatProperties formatProperties;
+            vkGetPhysicalDeviceFormatProperties(GPU::physicalDevice, imageFormat, &formatProperties);
+
+            if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
+                throw std::runtime_error("texture image format does not support linear blitting!");
+            }
+
+            beginCommand();
+
+            VkImageMemoryBarrier barrier
+            { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+            barrier.image = Image;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseArrayLayer = 0;
+            barrier.subresourceRange.layerCount = 1;
+            barrier.subresourceRange.levelCount = 1;
+
+            int32_t mipWidth = extent.width;
+            int32_t mipHeight = extent.height;
+
+            for (uint32_t mipLevel = 1; mipLevel < mipLevels; mipLevel++) {
+                barrier.subresourceRange.baseMipLevel = mipLevel - 1;
+                preBlit_Barrier(barrier);
+
+                blit_Image(Image, mipWidth, mipHeight, mipLevel);
+
+                postBlit_Barrier(barrier);
+
+                if (mipWidth > 1) mipWidth /= 2;
+                if (mipHeight > 1) mipHeight /= 2;
+            }
+
+            barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+            mipMap_Barrier(barrier);
+
+            endCommand();
+        }
+        void preBlit_Barrier(VkImageMemoryBarrier& barrier) {
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+            vkCmdPipelineBarrier(Command::cmdBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier);
+        }
+        void blit_Image(VkImage& Image, int32_t mipWidth, int32_t mipHeight, uint32_t mipLevel) {
+            VkImageBlit blit{};
+            blit.srcOffsets[0] = { 0, 0, 0 };
+            blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.srcSubresource.mipLevel = mipLevel - 1;
+            blit.srcSubresource.baseArrayLayer = 0;
+            blit.srcSubresource.layerCount = 1;
+            blit.dstOffsets[0] = { 0, 0, 0 };
+            blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstSubresource.mipLevel = mipLevel;
+            blit.dstSubresource.baseArrayLayer = 0;
+            blit.dstSubresource.layerCount = 1;
+
+            vkCmdBlitImage(Command::cmdBuffer,
+                Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1, &blit,
+                VK_FILTER_LINEAR);
+        }
+        void postBlit_Barrier(VkImageMemoryBarrier& barrier) {
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(Command::cmdBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier);
+        }
+        void mipMap_Barrier(VkImageMemoryBarrier& barrier) {
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(Command::cmdBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier);
+        }
+
+        
+    };
+
+
+    struct Texture : Image, Command, Descriptor {
         uint32_t mipLevels;
 
         VkSampler Sampler;
         int texWidth, texHeight, texChannels;
 
-        Texture(const char* filename) {
+        Texture(const char* filename) 
+            : Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
+        {
             stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
             VkDeviceSize imageSize = texWidth * texHeight * 4;
             mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
@@ -52,10 +297,15 @@ namespace vk {
             generateMipmaps(VK_FORMAT_R8G8B8A8_SRGB);
             createImageView(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
             createTextureSampler();
+
+            writeDescriptorSets(1);
         }
         ~Texture() {
             vkDestroySampler(GPU::device, Sampler, nullptr);
         }
+    protected:
+        VkDescriptorType mType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        VkShaderStageFlagBits mFlag = VK_SHADER_STAGE_FRAGMENT_BIT;
     private:
         void createImage(VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties) {
             VkImageCreateInfo imageInfo
@@ -146,7 +396,7 @@ namespace vk {
             }
 
             vkCmdPipelineBarrier(
-                Command::buffer,
+                Command::cmdBuffer,
                 sourceStage, destinationStage,
                 0,
                 0, nullptr,
@@ -156,7 +406,7 @@ namespace vk {
 
             endCommand();
         }
-        void copyBufferToImage(VkBuffer buffer) {
+        void copyBufferToImage(VkBuffer& buffer) {
             beginCommand();
 
             VkBufferImageCopy region{};
@@ -174,7 +424,7 @@ namespace vk {
                 1
             };
 
-            vkCmdCopyBufferToImage(Command::buffer, buffer, Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            vkCmdCopyBufferToImage(Command::cmdBuffer, buffer, Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
             endCommand();
         }
@@ -209,7 +459,7 @@ namespace vk {
                 barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                 barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-                vkCmdPipelineBarrier(Command::buffer,
+                vkCmdPipelineBarrier(Command::cmdBuffer,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
                     0, nullptr,
                     0, nullptr,
@@ -229,7 +479,7 @@ namespace vk {
                 blit.dstSubresource.baseArrayLayer = 0;
                 blit.dstSubresource.layerCount = 1;
 
-                vkCmdBlitImage(Command::buffer,
+                vkCmdBlitImage(Command::cmdBuffer,
                     Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     1, &blit,
@@ -240,7 +490,7 @@ namespace vk {
                 barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
                 barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-                vkCmdPipelineBarrier(Command::buffer,
+                vkCmdPipelineBarrier(Command::cmdBuffer,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
                     0, nullptr,
                     0, nullptr,
@@ -256,7 +506,7 @@ namespace vk {
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-            vkCmdPipelineBarrier(Command::buffer,
+            vkCmdPipelineBarrier(Command::cmdBuffer,
                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
                 0, nullptr,
                 0, nullptr,
@@ -318,28 +568,18 @@ namespace vk {
 
             vkBindBufferMemory(GPU::device, buffer, bufferMemory, 0);
         }
-    };
-    struct TextureSet : Descriptor {
-        VkDescriptorType mType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        VkShaderStageFlagBits mFlag = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        TextureSet(Texture& texture) : Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) {
-            writeDescriptorSets(texture, 1);
-        }
-
-        void writeDescriptorSets(Texture& texture, uint32_t bindingCount = 1) {
+        void writeDescriptorSets(uint32_t bindingCount = 1) {
             std::vector<VkDescriptorImageInfo> imageInfo(bindingCount);
             std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount);
             for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-
                 for (uint32_t j = 0; j < bindingCount; j++) {
                     imageInfo[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                    imageInfo[j].imageView = texture.ImageView; // TODO: Generalize
-                    imageInfo[j].sampler = texture.Sampler; // TODO: Generalize
+                    imageInfo[j].imageView = ImageView; // TODO: Generalize
+                    imageInfo[j].sampler = Sampler; // TODO: Generalize
                     descriptorWrites[j] = writeSet(imageInfo, { i,j });
-                }
-                vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
+                } 
             }
+            vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
         }
     };
 }

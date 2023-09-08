@@ -1,57 +1,34 @@
 #version 450
-//#extension GL_ARB_compute_shader : enable
-//#extension GL_ARB_shader_storage_buffer_object : enable
 
-struct Particle {
-	vec3 position;
-    vec3 color;
-    vec3 velocity;
-};
-
-struct camera{
+struct camera {
     mat4 view;
     mat4 proj;
-};
-
-struct modelMatrix {
-    mat4 model;
+    vec3 position;
 };
 
 layout(binding = 0) uniform UniformBufferObject {
-    modelMatrix model;
+    double dt;
+    mat4 model;
     camera cam;
-    float dt;
 } ubo;
 
-layout(std140  binding = 1) readonly buffer SSBO_in {
-   Particle inSSBO[ ];
+struct Particle {
+	vec4 position;
+    vec4 color;
+    //vec2 texCoord;
+    vec4 velocity;
 };
-layout(std140, binding = 2) buffer SSBO_out {
-   Particle outSSBO[ ];
+
+layout(std140, set = 2, binding = 0) readonly buffer inSSBO {
+   Particle particlesIn[ ];
 };
 
-// Workgroup Invocation Layout
-layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(std140, set = 2, binding = 1) buffer outSSBO {
+   Particle particlesOut[ ];
+};
 
-void main() 
-{
-    uint index = gl_GlobalInvocationID.x;  
+layout (local_size_x = 10, local_size_y = 10, local_size_z = 10) in;
 
-    Particle particle = inSSBO[index];
-
-    outSSBO[index].position = particle.position + particle.velocity * ubo.dt;
-    outSSBO[index].velocity = particle.velocity;
-
-    // Flip movement at window border
-    if ((outSSBO[index].position.x <= -1.0) || (outSSBO[index].position.x >= 1.0)) {
-        outSSBO[index].velocity.x = -outSSBO[index].velocity.x;
-    }
-    if ((outSSBO[index].position.y <= -1.0) || (outSSBO[index].position.y >= 1.0)) {
-        outSSBO[index].velocity.y = -outSSBO[index].velocity.y;
-    }
-
-}
-/*
 // Organization and Indexing
 uvec3 nWG = gl_NumWorkGroups;
 uvec3 sWG = gl_WorkGroupSize;
@@ -59,52 +36,79 @@ uint i = gl_WorkGroupID.x + (nWG.x * gl_WorkGroupID.y) + (nWG.x * nWG.y * gl_Wor
 uint j = gl_LocalInvocationID.x + (sWG.x * gl_LocalInvocationID.y) + (sWG.x * sWG.y *gl_LocalInvocationID.z);
     
 // Globals
-const float c = 2.0f;
+float dt = float(ubo.dt);
+const float c = 1.0f;
 const float e = 2.7182818284;
 
-float radius = 0.001f;
+const vec4 boundarySize = vec4(0.8f);
+
 
 
 // Calculates acceleration towards a position
-vec3 Gravity(vec3 p1, vec3 p2, float m1, float m2){
-    vec3 rN = normalize(p2 - p1);
+vec4 Gravity(vec4 p1, vec4 p2, float m1, float m2) {
+    vec4 rN = normalize(p2 - p1);
     float dist2 = distance(p2, p1);
     dist2 *= dist2;
     return rN * ((c*c*m1 * m1 * m2) / (4 + c*c*m1*m1*dist2));
 }
 
 
+float OOBcheck(float axisPosition, float axisVelocity, float axisBoundary) {
+    float adjustedPosition = axisPosition;
+    if (axisPosition < -boundarySize.x){
+        adjustedPosition = (axisVelocity * dt) - axisBoundary;
+    }
+    if (axisPosition > boundarySize.x) {
+        adjustedPosition = (axisVelocity * dt) + axisBoundary;
+    }
+    return adjustedPosition;
+}
+
+float out_of_bounds(float axisPosition, float axisVelocity, float axisBoundary) {
+    if ((axisPosition <= -axisBoundary) || (axisPosition >= axisBoundary)) {
+        return OOBcheck(axisPosition, axisVelocity, axisBoundary);
+    }
+    else return axisPosition;
+}
+
 void main() 
-{// Kinematic Motion of the Elements of the System
-    vec3 Acceleration;
+{
+    particlesOut[i].position = particlesIn[i].position;
+    
+    // Kinematic Motion of the Elements of the System
     if (i != j)
     {// Particle Interaction Calculations
         // Interacting Particle Properties
-        float m0 = objMtc[i][0][0];
-        float m1 = objMtc[j][0][0];
-        vec3 p0 = objMtc[i][3].xyz;
-        vec3 p1 = objMtc[j][3].xyz;
+        float m0 = 0.25f;
+        float m1 = 0.25f;
+        vec4 p0 = particlesIn[i].position;
+        vec4 p1 = particlesIn[j].position;
         
         // Velocity Calculation
-        objVel[i] += Gravity(p0, p1, m0, m1) * dt;
+        particlesOut[i].velocity += Gravity(p0, p1, m0, m1) * dt;
 
-        if (length(objVel[i]) > c)
-        {// Sets the Velocity Maximum to the Speed of Light
-            normalize(objVel[i]);
-            objVel[i] *= c;
-        }
-        if (distance(p0, p1) <= (objMtc[i][0][0] + objMtc[j][0][0]))
-        {
-            vec3 rN0 = - normalize(p1 - p0);
-            vec3 rN =  - normalize(p0 - p1);
-            vec3 v = (objVel[i].xyz + objVel[j].xyz)/2;
-            vec3 deflect = rN - 2 * dot(rN, objVel[i].xyz) * objVel[i].xyz;
-            objVel[i] = v;
-            objVel[j] = v;
+        if (length(particlesOut[i].velocity) > c/2)
+        {// Sets the Velocity Maximum to the Speed of Light (divided by two bc ITS TOO FAST)
+            normalize(particlesOut[i].velocity);
+            particlesOut[i].velocity *= c/2;
         }
 
-        // Update Position
-        objMtc[i][3].xyz += objVel[i] * dt;
+        particlesOut[i].position += particlesOut[i].velocity * dt;
+        //particlesOut[i].velocity = particlesIn[i].velocity;
+
+        // Flip movement at window border
+        particlesOut[i].position.x = out_of_bounds(particlesOut[i].position.x, particlesOut[i].velocity.x, boundarySize.x);
+        particlesOut[i].position.y = out_of_bounds(particlesOut[i].position.y, particlesOut[i].velocity.y, boundarySize.y);
+        particlesOut[i].position.z = out_of_bounds(particlesOut[i].position.z, particlesOut[i].velocity.z, boundarySize.z);
+        /*
+        if (out_of_bounds(particlesOut[i].position.y, boundarySize.y)) {
+            particlesOut[i].velocity.y = -particlesOut[i].velocity.y;
+            particlesOut[i].position.y = OOBcheck(particlesOut[i].position.y, particlesOut[i].velocity.y, boundarySize.y);
+        }
+        if (out_of_bounds(particlesOut[i].position.z, boundarySize.z)) {
+            particlesOut[i].velocity.z = -particlesOut[i].velocity.z;
+            particlesOut[i].position.z = OOBcheck(particlesOut[i].position.z, particlesOut[i].velocity.z, boundarySize.z);
+        }
+        */
     }   
 }
-*/

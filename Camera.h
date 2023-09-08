@@ -2,6 +2,12 @@
 #define hCamera
 
 namespace vk {
+    void gravity(glm::vec3& position, float& velocity) {
+        double currentTime = glfwGetTime();
+        double dt = (currentTime - SwapChain::lastTime);
+        position.y += velocity * dt - 9.8 * 0.5 * dt * dt;
+    }
+
     struct Camera {
         alignas(16) glm::mat4 view;
         alignas(16) glm::mat4 proj;
@@ -23,6 +29,9 @@ namespace vk {
                 keyboard_Input();
                 controller_Input();
             }
+            if (!noClip) {
+                gravity(position, velocity);
+            }
             view = glm::lookAt(position, position + Orientation, Up);
             proj = glm::perspective(glm::radians(FOVdeg), (float)SwapChain::Extent.width / SwapChain::Extent.height, nearPlane, farPlane);
             proj[1][1] *= -1;
@@ -34,6 +43,7 @@ namespace vk {
         float sensitivity = 1.75f;
     private:
         bool firstClick = true;
+        bool noClip = true;
         void keyboard_Input() {
             if (glfwGetKey(Window::handle, GLFW_KEY_W))
             {
@@ -74,7 +84,10 @@ namespace vk {
             {
                 velocity = 0.005f;
             }
-
+            if (glfwGetKey(Window::handle, GLFW_KEY_V))
+            {
+                noClip = !noClip;
+            }
             // Handles mouse inputs
             if (glfwGetMouseButton(Window::handle, GLFW_MOUSE_BUTTON_RIGHT))
             {	// Hides mouse cursor

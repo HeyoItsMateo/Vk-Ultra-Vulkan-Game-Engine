@@ -9,8 +9,6 @@
 #include <set>
 
 namespace vk {
-    
-
     struct Shader {
         VkShaderModule shaderModule;
         VkPipelineShaderStageCreateInfo stageInfo

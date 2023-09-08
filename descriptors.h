@@ -1,6 +1,8 @@
 #ifndef hDescriptors
 #define hDescriptors
 
+#include <set>
+
 namespace vk {
     struct Descriptor {
         VkDescriptorSetLayout SetLayout;

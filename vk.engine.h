@@ -31,7 +31,7 @@ namespace vk {
     }
 
     struct Engine : SwapChain, EngineCPU {
-        void run(Pipeline& pipeline0, Pipeline& pipeline1, GameObject& gameObject0, GameObject& octree, ParticlePipeline& particlePipeline, ComputePipeline& computePipeline, SSBO& ssbo, UBO& ubo, Uniforms& uniforms) {
+        void run(Pipeline& pipeline0, Pipeline& pipeline1, Mesh& gameObject0, Mesh& octree, Pipeline& particlePipeline, ComputePPL& computePipeline, SSBO& ssbo) {
             std::jthread t1(&Engine::deltaTime, this);
 
             uint32_t imageIndex;
@@ -63,12 +63,12 @@ namespace vk {
         }
 
     private:
-        void runCompute(ComputePipeline& pipeline) {
+        void runCompute(ComputePPL& pipeline) {
             vkComputeSync();
             pipeline.run();
             vkSubmitComputeQueue();
         }
-        void renderScene(Pipeline& pipeline0, Pipeline& pipeline1, GameObject& gameObject0, GameObject& gameObject1, ParticlePipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
+        void renderScene(Pipeline& pipeline0, Pipeline& pipeline1, Mesh& gameObject0, Mesh& gameObject1, Pipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
             vkRenderSync();
             beginRender(imageIndex);
 

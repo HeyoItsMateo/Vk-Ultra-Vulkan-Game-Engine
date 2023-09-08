@@ -21,6 +21,10 @@ namespace vk {
         }
     };
 
+    struct CPU_ {
+
+    };
+
     struct CPU {
         VkCommandPool pool;
         CPU() {
@@ -46,7 +50,7 @@ namespace vk {
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocInfo.commandBufferCount = 1;
 
-            if (vkAllocateCommandBuffers(GPU::device, &allocInfo, &buffer) != VK_SUCCESS) {
+            if (vkAllocateCommandBuffers(GPU::device, &allocInfo, &cmdBuffer) != VK_SUCCESS) {
                 throw std::runtime_error("failed to allocate command buffers!");
             }
         }
@@ -58,29 +62,29 @@ namespace vk {
             allocInfo.commandPool = pool;
             allocInfo.commandBufferCount = 1; //TODO: find out how to allocate two command buffers for parallel writing/submission
 
-            vkAllocateCommandBuffers(GPU::device, &allocInfo, &buffer);
+            vkAllocateCommandBuffers(GPU::device, &allocInfo, &cmdBuffer);
 
             VkCommandBufferBeginInfo beginInfo
             { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-            vkBeginCommandBuffer(buffer, &beginInfo);
+            vkBeginCommandBuffer(cmdBuffer, &beginInfo);
         }
         void endCommand() {
-            vkEndCommandBuffer(buffer);
+            vkEndCommandBuffer(cmdBuffer);
 
             VkSubmitInfo submitInfo
             { VK_STRUCTURE_TYPE_SUBMIT_INFO };
             submitInfo.commandBufferCount = 1; //TODO: find out how to allocate two or more command buffers
-            submitInfo.pCommandBuffers = &buffer;
+            submitInfo.pCommandBuffers = &cmdBuffer;
 
             vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, fence);
             signal();
 
-            vkFreeCommandBuffers(GPU::device, pool, 1, &buffer);
+            vkFreeCommandBuffers(GPU::device, pool, 1, &cmdBuffer);
         }
     protected:
-        VkCommandBuffer buffer;
+        VkCommandBuffer cmdBuffer;
     };
 
     struct EngineSync {

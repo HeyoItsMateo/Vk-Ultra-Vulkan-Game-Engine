@@ -85,103 +85,44 @@ struct octreeNew {
     }
 };
 
-
-struct Voxel : Vertex {
-    Voxel* pParent;
-    std::vector<Voxel> nodes;
-    std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
-    
-    glm::vec4 center;
-    glm::vec4 dimensions{1.f};
-    glm::mat4 matrix;
-    Voxel(glm::vec4 Center = {0,0,0,1}, glm::vec4 Dimensions = {1,1,1,1})
-        : center(Center), dimensions(Dimensions)
-    {
-        genVertices();
-        genIndices();
-        matrix = genMatrix(Center, Dimensions);
-    }
-public:
-    std::set<Vertex*> content;
-    bool containsVertex = false;
-    const static VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-    template <typename T>
-    inline void checkVoxel(std::vector<T>& vertices) {
-        for (auto& vertex : vertices) {
-            float dist = glm::distance(vertex.position, center);
-            float dotp = glm::dot(center, vertex.position);
-
-            if ((0.5f <= dotp <= 1.5f) and (dist <= glm::length(dimensions))) {
-                content.insert(&vertex);
-                containsVertex = true;
-                break;
+namespace vk {
+    struct Octree {
+        Voxel rootNode;
+        std::set<Octree> subNodes;
+        std::vector<glm::mat4> matrices;
+        Octree(std::vector<Vertex>& vertices, float minSize, float rootScale = 0.8f) {
+            init_Root(vertices, minSize, rootScale);
+        }
+    private:
+        int currentDepth = 0;
+        void init_Root(std::vector<Vertex>& vertices, float minSize, float rootScale)
+        {// Generates the dimensions of the root node and creates the root node.
+            float numVerts = 1;
+            glm::vec4 center(0.f), sumPos(0.f);
+            for (Vertex& vtx : vertices) {
+                sumPos += vtx.position;
+                center = sumPos / numVerts;
+                if (glm::distance(vtx.position, center) > minSize) {
+                    minSize = glm::distance(vtx.position, center);
+                }
+                numVerts += 1;
             }
-        }
-    }
-    void checkNode() {
-        for (auto& vert : content) {
-            Vertex v = *vert;
-            float dist = glm::distance(v.position, center);
-            float dotp = glm::dot(center, v.position);
+            rootNode(center, glm::vec4(glm::vec3(minSize * rootScale), 1.f));
 
-            if ((dotp < 0.5f) or (dotp > 1.5f) or (dist > glm::length(dimensions))) {
-                content.erase(vert);
-                std::cout << "Erased a vertex!\n";
+            if ((rootNode.VBO.size == 0) or (rootNode.EBO.size == 0)) {
+                throw std::runtime_error("Failed to create root!");
             }
+            matrices.push_back(rootNode.matrix);
+            currentDepth++;
         }
-    }
-
-private:
-    void genVertices() {
-        vertices.resize(8);
-        std::vector<glm::vec4> metrics = { { 1,  1,  1,  1 },
-                                           { 1,  1, -1,  1 },
-                                           { 1, -1, -1,  1 },
-                                           { 1, -1,  1,  1 } };
-        for (int i = 0; i < 8; i++) {
-            if (i < 4) {
-                vertices[i].position = metrics[i];
-                vertices[i].color = glm::vec4(glm::vec3(0.85f), 1.f);
-                //vertices[i].texCoord = glm::vec2(0.f);
-            }
-            else {
-                metrics[i - 4] *= glm::vec4(-1, 1, 1, 1);
-                vertices[i].position = metrics[i - 4];
-                vertices[i].color = glm::vec4(glm::vec3(0.85f), 1.f);
-                //vertices[i].texCoord = glm::vec2(0.f);
-            }
-        }
-    }
-    void genIndices() {
-        indices.resize(24);
-
-        indices[7] = 0;
-        indices[15] = 4;
-        for (int x = 0; x < 7; x++) {
-            indices[x] = static_cast<uint16_t>(floor((x + 1) / 2));
-            indices[x + 8] = static_cast<uint16_t>(floor((x + 1) / 2) + 4);
-        }
-        int temp0 = 4, temp1 = 0;
-        for (int x = 16; x < 24; x += 2) {
-            indices[x] = temp0;
-            indices[x + 1] = temp1;
-
-            temp0++;
-            temp1++;
-        }
-    }
-    glm::mat4 genMatrix(glm::vec3 Center, glm::vec3 Dimensions) {
-        glm::mat4 _matrix(1.f);
-        return glm::scale(glm::translate(_matrix, Center), Dimensions);
-    }
-};
-
+    };
+}
+/*
 template <typename T>
-struct Octree : vk::GameObject {
-    std::vector<Voxel> Nodes;
+struct Octree {
+    std::vector<vk::Voxel> Nodes;
     std::vector<glm::mat4> matrices;
-    std::set<Voxel*> leafNodes;
+    std::set<vk::Voxel*> leafNodes;
     //int maxInstances = 128;
     int maxDepth = 8;
     Octree(std::vector<T>& vertices, float minSize, float rootScale = 0.8f) {
@@ -194,7 +135,7 @@ struct Octree : vk::GameObject {
     void updateTree(std::vector<T>& vertices) {
         for (auto const& node : leafNodes)
         {
-            Voxel temp = *node;
+            vk::Voxel temp = *node;
             temp.checkNode();
         }
     }
@@ -212,7 +153,7 @@ private:
             }
             numVerts += 1;
         }
-        Voxel Root(center, glm::vec4(glm::vec3(minSize * rootScale), 1.f));
+        vk::Voxel Root(center, glm::vec4(glm::vec3(minSize * rootScale), 1.f));
         Nodes.push_back(Root);
         if ((Nodes[0].vertices.size() == 0) or (Nodes[0].indices.size() == 0)) {
             throw std::runtime_error("Failed to create root!");
@@ -220,13 +161,11 @@ private:
         matrices.push_back(Root.matrix);
         currentDepth++;
     }    
-    void checkTree(std::vector<T>& vertices, Voxel& Node, int depth) {
+    void checkTree(std::vector<T>& vertices, vk::Voxel& Node, int depth) {
         Node.checkVoxel(vertices);
         if (Node.containsVertex) {
             for (auto& vertex : Node.vertices) {
-                /* Find the closest octant to the contained vertex and build a node there. */
-                /* If it contains other vertices, then build octants on those if needed. */
-                Voxel child = genChild(vertex, Node);
+                vk::Voxel child = genChild(vertex, Node);
                 if (depth < maxDepth) {
                     checkTree(vertices, child, depth + 1);
                 }
@@ -238,9 +177,9 @@ private:
             }           
         }
     }
-    Voxel genChild(T& vertex, Voxel& Node) {
+    vk::Voxel genChild(lineList& vertex, vk::Voxel& Node) {
         glm::vec4 center = Node.matrix * glm::vec4(glm::vec3(vertex.position * 0.5f), 1.f);
-        Voxel child(center, 0.5f * Node.dimensions);
+        vk::Voxel child(center, 0.5f * Node.dimensions);
         child.pParent = &Node;
         matrices.push_back(child.matrix);
         Node.nodes.push_back(child);
@@ -283,6 +222,7 @@ private:
             { { 1, 0,-1, 1}, 0b00001001 },
     };
 };
+*/
 
 template <typename T>
 struct biOctree {

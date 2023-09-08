@@ -56,10 +56,10 @@
     <None Include="bin\shader_log.bin">
       <Filter>Resource Files\bin</Filter>
     </None>
-    <None Include="shaders\glsl\octree.frag">
+    <None Include="shaders\glsl\instanced.frag">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
-    <None Include="shaders\glsl\octree.vert">
+    <None Include="shaders\glsl\instanced.vert">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
     <None Include="shaders\glsl\point.comp">
@@ -71,13 +71,16 @@
     <None Include="shaders\glsl\point.vert">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
-    <None Include="shaders\glsl\shader.comp">
-      <Filter>Resource Files\shaders\glsl</Filter>
-    </None>
     <None Include="shaders\glsl\vertex.frag">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
     <None Include="shaders\glsl\vertex.vert">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\plane.frag">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\plane.vert">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
   </ItemGroup>
@@ -145,6 +148,18 @@
       <Filter>Resource Files\shaders\hlsl</Filter>
     </FxCompile>
     <FxCompile Include="shaders\hlsl\pixel_frag.hlsl">
+      <Filter>Resource Files\shaders\hlsl</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\plane_vert.hlsl">
+      <Filter>Resource Files\shaders\hlsl</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\plane_frag.hlsl">
+      <Filter>Resource Files\shaders\hlsl</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\instanced_frag.hlsl">
+      <Filter>Resource Files\shaders\hlsl</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\instanced_vert.hlsl">
       <Filter>Resource Files\shaders\hlsl</Filter>
     </FxCompile>
   </ItemGroup>

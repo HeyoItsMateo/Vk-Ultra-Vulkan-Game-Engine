@@ -91,9 +91,10 @@
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
-      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <ObjectFileOutput>$(ProjectDir)shaders\spv\%(Filename).spv</ObjectFileOutput>
       <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
+      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -123,9 +124,10 @@
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
-      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <ObjectFileOutput>$(ProjectDir)shaders\spv\%(Filename).spv</ObjectFileOutput>
       <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
+      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -151,9 +153,10 @@
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
-      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <ObjectFileOutput>$(ProjectDir)shaders\spv\%(Filename).spv</ObjectFileOutput>
       <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
+      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -183,9 +186,10 @@
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
-      <ObjectFileOutput>$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+      <ObjectFileOutput>$(ProjectDir)shaders\spv\%(Filename).spv</ObjectFileOutput>
       <AdditionalOptions>-DENABLE_SPIRV_CODEGEN=ON %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel>6.4</ShaderModel>
+      <AllResourcesBound>false</AllResourcesBound>
     </FxCompile>
     <PreBuildEvent>
       <Command>
@@ -203,12 +207,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\shader_log.bin" />
-    <None Include="shaders\glsl\octree.frag" />
-    <None Include="shaders\glsl\octree.vert" />
+    <None Include="shaders\glsl\instanced.frag" />
+    <None Include="shaders\glsl\instanced.vert" />
+    <None Include="shaders\glsl\plane.frag" />
+    <None Include="shaders\glsl\plane.vert" />
     <None Include="shaders\glsl\point.comp" />
     <None Include="shaders\glsl\point.frag" />
     <None Include="shaders\glsl\point.vert" />
-    <None Include="shaders\glsl\shader.comp" />
     <None Include="shaders\glsl\vertex.frag" />
     <None Include="shaders\glsl\vertex.vert" />
   </ItemGroup>
@@ -234,6 +239,18 @@
     <ClInclude Include="vk.swapchain.h" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="shaders\hlsl\instanced_frag.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\instanced_vert.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+    </FxCompile>
     <FxCompile Include="shaders\hlsl\pixel_frag.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
@@ -247,6 +264,22 @@
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)shaders\%(Filename).spv</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\plane_frag.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="shaders\hlsl\plane_vert.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</AllResourcesBound>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</AllResourcesBound>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</AllResourcesBound>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</AllResourcesBound>
     </FxCompile>
     <FxCompile Include="shaders\hlsl\vertex_vert.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>

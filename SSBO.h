@@ -25,7 +25,6 @@ struct pop {
 
 namespace vk {
     struct SSBO : BufferObject, Descriptor {
-        VkDescriptorType type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         template<typename T>
         inline SSBO(T& bufferData, VkShaderStageFlags flags, uint32_t bindingCount = 2)
             : Descriptor(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, flags, bindingCount)
@@ -51,51 +50,46 @@ namespace vk {
     protected:
         template<typename T>
         inline void loadData(std::vector<T>& bufferData) {
-            void* data;
-            VkBuffer stagingBuffer;
-            VkDeviceMemory stagingBufferMemory;
-
             Buffer.resize(MAX_FRAMES_IN_FLIGHT);
             Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
             bufferSize = sizeof(T) * bufferData.size();
 
-            createBuffer(stagingBuffer, stagingBufferMemory,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-            vkMapMemory(GPU::device, stagingBufferMemory, 0, bufferSize, 0, &data);
-            memcpy(data, bufferData.data(), (size_t)bufferSize);
-            vkUnmapMemory(GPU::device, stagingBufferMemory);
+            StageBuffer stageSSBO(bufferData.data(), bufferSize);
 
             for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
                 createBuffer(Buffer[i], Memory[i],
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-                copyBuffer(stagingBuffer, Buffer[i]);
+                stageSSBO.transferData(Buffer[i]);
             }
-
-            vkDestroyBuffer(GPU::device, stagingBuffer, nullptr);
-            vkFreeMemory(GPU::device, stagingBufferMemory, nullptr);
         }
     private:
-        void writeDescriptorSets(uint32_t bindingCount) {
-            std::vector<VkDescriptorBufferInfo> bufferInfo(bindingCount);
-            std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount);
+        void writeDescriptorSets(uint32_t bindingCount) override {
+            VkWriteDescriptorSet allocWrite
+            { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            allocWrite.dstArrayElement = 0;
+            allocWrite.descriptorCount = 1;
+            allocWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount, allocWrite);
+
+            VkDescriptorBufferInfo allocBuffer{};
+            allocBuffer.offset = 0;
+            allocBuffer.range = bufferSize;
+            std::vector<VkDescriptorBufferInfo> bufferInfo(bindingCount, allocBuffer);
 
             for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
                 bufferInfo[0].buffer = Buffer[(i - 1) % MAX_FRAMES_IN_FLIGHT];
                 bufferInfo[1].buffer = Buffer[i];
-
+                
                 for (uint32_t j = 0; j < bindingCount; j++) {
-                    bufferInfo[j].offset = 0;
-                    bufferInfo[j].range = bufferSize;
-
-                    descriptorWrites[j] = writeSet(bufferInfo, { i, j });
+                    descriptorWrites[j].dstSet = Sets[i];
+                    descriptorWrites[j].dstBinding = j;
+                    descriptorWrites[j].pBufferInfo = &bufferInfo[j];
                 }
-                vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
             }
+            vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
         }
     };
 }

@@ -90,16 +90,18 @@ namespace vk {
         Voxel rootNode;
         std::set<Octree> subNodes;
         std::vector<glm::mat4> matrices;
-        Octree(std::vector<Vertex>& vertices, float minSize, float rootScale = 0.8f) {
+        template<typename T>
+        inline Octree(std::vector<T>& vertices, float minSize, float rootScale = 0.8f) {
             init_Root(vertices, minSize, rootScale);
         }
     private:
         int currentDepth = 0;
-        void init_Root(std::vector<Vertex>& vertices, float minSize, float rootScale)
+        template<typename T>
+        inline void init_Root(std::vector<T>& vertices, float minSize, float rootScale)
         {// Generates the dimensions of the root node and creates the root node.
             float numVerts = 1;
             glm::vec4 center(0.f), sumPos(0.f);
-            for (Vertex& vtx : vertices) {
+            for (T& vtx : vertices) {
                 sumPos += vtx.position;
                 center = sumPos / numVerts;
                 if (glm::distance(vtx.position, center) > minSize) {

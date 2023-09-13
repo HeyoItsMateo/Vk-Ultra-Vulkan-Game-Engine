@@ -6,16 +6,10 @@ namespace vk {
         double dt = 1.0;
         alignas(16) glm::mat4 model = glm::mat4(1.f);
         Camera camera;
-        void update(double lastTime, float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {
-            std::jthread t1([this]
-                { modelUpdate(); }
-            );
-            std::jthread t2([this, FOVdeg, nearPlane, farPlane]
-                { camera.update(FOVdeg, nearPlane, farPlane); }
-            );
-            std::jthread t3([this, lastTime]
-                { deltaTime(lastTime); }
-            );
+        void update(float FOVdeg = 45.f, float nearPlane = 0.01f, float farPlane = 1000.f) {
+            std::jthread t1([&] { modelUpdate(); });
+            std::jthread t2([&] { camera.update(FOVdeg, nearPlane, farPlane); });
+            std::jthread t3([&] { deltaTime(); });
         }
     private:
         void modelUpdate() {
@@ -25,81 +19,64 @@ namespace vk {
 
             model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         }
-        void deltaTime(double lastTime) {
+        void deltaTime() {
             double currentTime = glfwGetTime();
-            dt = (currentTime - lastTime);
+            dt = (currentTime - SwapChain::lastTime);
         }
     };
 
     struct UBO : BufferObject, Descriptor {
-        VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         template<typename T>
         inline UBO(T& uniforms, VkShaderStageFlags flag, uint32_t bindingCount = 1)
-            : Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, flag, bindingCount)
+            : Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, flag, bindingCount), stageUBO(&uniforms, sizeof(T))
         {
-            loadData(uniforms);
+            bufferSize = sizeof(T);
+            Buffer.resize(MAX_FRAMES_IN_FLIGHT);
+            Memory.resize(MAX_FRAMES_IN_FLIGHT);
 
+            for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+                createBuffer(Buffer[i], Memory[i],
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+                stageUBO.transferData(Buffer[i]);
+            }
             writeDescriptorSets(bindingCount);
         }
         ~UBO() {
-            vkUnmapMemory(GPU::device, stagingBufferMemory);
-            vkDestroyBuffer(GPU::device, stagingBuffer, nullptr);
-            vkFreeMemory(GPU::device, stagingBufferMemory, nullptr);
-
             std::for_each(std::execution::par, Buffer.begin(), Buffer.end(),
                 [&](VkBuffer buffer) { vkDestroyBuffer(GPU::device, buffer, nullptr); });
 
             std::for_each(std::execution::par, Memory.begin(), Memory.end(),
                 [&](VkDeviceMemory memory) { vkFreeMemory(GPU::device, memory, nullptr); });
         }
-
         template <typename T>
         inline void update(T& uniforms) {
-            uniforms.update(vk::SwapChain::lastTime);
+            uniforms.update();
 
-            memcpy(data, &uniforms, (size_t)bufferSize);
-
-            copyBuffer(stagingBuffer, Buffer[vk::SwapChain::currentFrame]);
-        }
-    protected:
-        template<typename T>
-        inline void loadData(T& UBO) {
-            Buffer.resize(MAX_FRAMES_IN_FLIGHT);
-            Memory.resize(MAX_FRAMES_IN_FLIGHT);
-
-            bufferSize = sizeof(T);
-
-            createBuffer(stagingBuffer, stagingBufferMemory,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-            vkMapMemory(GPU::device, stagingBufferMemory, 0, bufferSize, 0, &data);
-            memcpy(data, &UBO, (size_t)bufferSize);
-
-            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-                createBuffer(Buffer[i], Memory[i],
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-                copyBuffer(stagingBuffer, Buffer[i]);
-            }
+            stageUBO.update(&uniforms, Buffer[SwapChain::currentFrame]);
         }
     private:
-        void* data;
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
+        StageBuffer stageUBO;
+        void writeDescriptorSets(uint32_t bindingCount) override {
+            VkWriteDescriptorSet allocWrite
+            { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            allocWrite.dstArrayElement = 0;
+            allocWrite.descriptorCount = 1;
+            allocWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount, allocWrite);
 
-        void writeDescriptorSets(uint32_t bindingCount) {
-            std::vector<VkDescriptorBufferInfo> bufferInfo(bindingCount);
-            std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount);
+            VkDescriptorBufferInfo allocBuffer{};
+            allocBuffer.offset = 0;
+            allocBuffer.range = bufferSize;
+            std::vector<VkDescriptorBufferInfo> bufferInfo(bindingCount, allocBuffer);
 
             for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-                bufferInfo[0].buffer = Buffer[i];
-
+                descriptorWrites[i].dstSet = Sets[i];
                 for (uint32_t j = 0; j < bindingCount; j++) {
-                    bufferInfo[j].offset = 0;
-                    bufferInfo[j].range = bufferSize;
-                    descriptorWrites[j] = writeSet(bufferInfo, { i, j });
+                    bufferInfo[j].buffer = Buffer[i];
+                    descriptorWrites[j].dstBinding = j;
+                    descriptorWrites[j].pBufferInfo = &bufferInfo[j];
                 }
             }
             vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);

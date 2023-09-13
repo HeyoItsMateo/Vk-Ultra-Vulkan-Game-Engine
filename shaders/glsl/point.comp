@@ -19,11 +19,11 @@ struct Particle {
     vec4 velocity;
 };
 
-layout(std140, set = 2, binding = 0) readonly buffer inSSBO {
+layout(std140, set = 1, binding = 0) readonly buffer inSSBO {
    Particle particlesIn[ ];
 };
 
-layout(std140, set = 2, binding = 1) buffer outSSBO {
+layout(std140, set = 1, binding = 1) buffer outSSBO {
    Particle particlesOut[ ];
 };
 

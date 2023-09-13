@@ -7,8 +7,7 @@ namespace vk {
     struct Descriptor {
         VkDescriptorSetLayout SetLayout;
         std::vector<VkDescriptorSet> Sets;
-        Descriptor(VkDescriptorType type, VkShaderStageFlags flag, uint32_t bindingCount) {
-            Type = type;
+        Descriptor(VkDescriptorType type, VkShaderStageFlags flag, uint32_t bindingCount = 1) {
             createDescriptorPool(type, bindingCount);
             createDescriptorSetLayout(type, flag, bindingCount);
             allocateDescriptorSets();
@@ -18,28 +17,8 @@ namespace vk {
             vkDestroyDescriptorSetLayout(GPU::device, SetLayout, nullptr);
         }
     protected:
-        VkDescriptorType Type;
         VkDescriptorPool Pool;
-        template <typename T>
-        inline VkWriteDescriptorSet writeSet(std::vector<T>& bufferInfo, std::array<uint32_t, 2> dst) {
-            VkWriteDescriptorSet writeInfo
-            { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-            writeInfo.dstSet = Sets[dst[0]];
-            writeInfo.dstBinding = dst[1];
-            writeInfo.dstArrayElement = 0;
-
-            writeInfo.descriptorType = Type;
-            writeInfo.descriptorCount = 1;
-
-            if constexpr (std::is_same<T, VkDescriptorImageInfo>::value) {
-                writeInfo.pImageInfo = &bufferInfo[dst[1]];
-            }
-            else {
-                writeInfo.pBufferInfo = &bufferInfo[dst[1]];
-            }
-
-            return writeInfo;
-        }
+        virtual void writeDescriptorSets(uint32_t bindingCount) {}
     private:
         void createDescriptorPool(VkDescriptorType& type, uint32_t bindingCount) {
             VkDescriptorPoolSize poolSizes

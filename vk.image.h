@@ -35,12 +35,12 @@ namespace vk {
         VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
         VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-        static void createImage(VkImage& image, VkDeviceMemory& imageMemory, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t mipLevels = 1) {
+        void createImage(VkExtent2D& imageExtent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkSampleCountFlagBits msaaCount = GPU::msaaSamples, uint32_t mipLevels = 1) {
             VkImageCreateInfo imageInfo
             { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
             imageInfo.imageType = VK_IMAGE_TYPE_2D;
-            imageInfo.extent.width = GPU::Extent.width;
-            imageInfo.extent.height = GPU::Extent.height;
+            imageInfo.extent.width = imageExtent.width;
+            imageInfo.extent.height = imageExtent.height;
             imageInfo.extent.depth = 1;
             imageInfo.mipLevels = mipLevels;
             imageInfo.arrayLayers = 1;
@@ -48,26 +48,26 @@ namespace vk {
             imageInfo.tiling = tiling;
             imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
             imageInfo.usage = usage;
-            imageInfo.samples = GPU::msaaSamples;
+            imageInfo.samples = msaaCount;
             imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-            if (vkCreateImage(GPU::device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+            if (vkCreateImage(GPU::device, &imageInfo, nullptr, &Image) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create image!");
             }
 
             VkMemoryRequirements memRequirements;
-            vkGetImageMemoryRequirements(GPU::device, image, &memRequirements);
+            vkGetImageMemoryRequirements(GPU::device, Image, &memRequirements);
 
             VkMemoryAllocateInfo allocInfo
             { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
             allocInfo.allocationSize = memRequirements.size;
             allocInfo.memoryTypeIndex = GPU::findMemoryType(memRequirements.memoryTypeBits, properties);
 
-            if (vkAllocateMemory(GPU::device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+            if (vkAllocateMemory(GPU::device, &allocInfo, nullptr, &ImageMemory) != VK_SUCCESS) {
                 throw std::runtime_error("failed to allocate image memory!");
             }
 
-            vkBindImageMemory(GPU::device, image, imageMemory, 0);
+            vkBindImageMemory(GPU::device, Image, ImageMemory, 0);
         }
         static void createImageView(VkImage& image, VkImageView& view, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) {
             VkImageViewCreateInfo viewInfo
@@ -87,7 +87,7 @@ namespace vk {
         }
         
         void createResource() {
-            createImage(Image, ImageMemory, format, tiling, usage, properties);
+            createImage(GPU::Extent, format, tiling, usage, properties);
             createImageView(Image, ImageView, format, aspect, 1);
         }
 

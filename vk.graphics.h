@@ -38,6 +38,7 @@ namespace vk {
         Shader(std::string const& filename, VkShaderStageFlagBits stage)
             : shaderStage(stage)
         {
+            checkLog(filename);
             auto code = readFile(".\\shaders\\" + filename + ".spv");
             createShaderModule(code, filename);
         }
@@ -189,7 +190,7 @@ namespace vk {
             return dynamic_state;
         }
     };
-    template<typename primitiveType, VkPolygonMode polygonMode>
+    template<typename primitiveType, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL>
     struct GraphicsPPL_ : Pipeline {
         GraphicsPPL_(std::vector<Shader>& shaders, std::vector<Descriptor>& descriptorSet)
         {
@@ -269,7 +270,7 @@ namespace vk {
         }
     };
 
-    template<typename primitiveType, VkPolygonMode polygonMode>
+    template<typename primitiveType, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL>
     struct GraphicsPPL : Pipeline {
         GraphicsPPL(std::vector<Shader>& shaders, std::vector<VkDescriptorSet> const& descSets, std::vector<VkDescriptorSetLayout>& SetLayout)
         {

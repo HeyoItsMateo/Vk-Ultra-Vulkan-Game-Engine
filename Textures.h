@@ -68,11 +68,11 @@ namespace vk {
         }
     };
 
-    struct Texture_ : Image, Command, Descriptor {
+    struct Texture : Image, Command, Descriptor {
         uint32_t mipLevels;
         VkExtent2D extent;
         int texChannels;
-        Texture_(const char* filename) : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
+        Texture(const char* filename) : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
         {
             stbi_uc* pixels = stbi_load(filename, (int*)&extent.width, (int*)&extent.height, &texChannels, STBI_rgb_alpha);
             VkDeviceSize imageSize = extent.width * extent.height * 4;
@@ -94,7 +94,7 @@ namespace vk {
             createImageView(Image, ImageView, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
             writeDescriptorSets();
         }
-        ~Texture_() = default;
+        ~Texture() = default;
     private:
         void transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
             beginCommand();
@@ -278,13 +278,13 @@ namespace vk {
     };
 
 
-    struct Texture : Image, Command, Descriptor {
+    struct CombinedImageSampler : Image, Command, Descriptor {
         uint32_t mipLevels;
 
         VkSampler Sampler;
         int texWidth, texHeight, texChannels;
 
-        Texture(const char* filename) 
+        CombinedImageSampler(const char* filename)
             : Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
         {
             stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -326,7 +326,7 @@ namespace vk {
 
             writeDescriptorSets();
         }
-        ~Texture() {
+        ~CombinedImageSampler() {
             vkDestroySampler(GPU::device, Sampler, nullptr);
         }
     private:

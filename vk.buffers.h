@@ -1,6 +1,8 @@
 #ifndef hBuffers
 #define hBuffers
 
+#include "vk.cpu.h"
+
 namespace vk {
     struct Buffer {
         Buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)

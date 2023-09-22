@@ -1,6 +1,8 @@
 #ifndef hVulkanCPU
 #define hVulkanCPU
 
+#include "vk.swapchain.h"
+
 namespace vk {
     struct Fence {
         VkFence fence;

@@ -200,6 +200,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Textures.cpp" />
     <ClCompile Include="vk.gpu.cpp" />
     <ClCompile Include="vk.graphics.cpp" />
     <ClCompile Include="vk.image.cpp" />
@@ -220,7 +221,7 @@
     <None Include="shaders\glsl\vertex.vert" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Buffers.h" />
+    <ClInclude Include="vk.buffers.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="file_system.h" />
     <ClInclude Include="Pipeline.h" />

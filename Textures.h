@@ -1,26 +1,10 @@
 #ifndef hTextures
 #define hTextures
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
-#include <map>
-
 #include "vk.cpu.h"
+#include "vk.image.h"
+#include "vk.buffers.h"
 #include "descriptors.h"
-
-std::map<std::array<VkImageLayout, 2>, std::array<VkAccessFlags, 2>> imageMap
-{
-    {
-        {VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL},
-        {VK_ACCESS_NONE, VK_ACCESS_NONE} },
-    {
-        {VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
-        {VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT} },
-    {
-        {VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-        {VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT} }
-};
 
 namespace vk {
     struct Sampler : Descriptor {
@@ -85,31 +69,10 @@ namespace vk {
         uint32_t mipLevels;
         VkExtent2D extent;
         int texChannels;
-        Texture(const char* filename) : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
-        {
-            stbi_uc* pixels = stbi_load(filename, (int*)&extent.width, (int*)&extent.height, &texChannels, STBI_rgb_alpha);
-            VkDeviceSize imageSize = extent.width * extent.height * 4;
-            mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(extent.width, extent.height)))) + 1;
-            createImage(extent, VK_FORMAT_R8G8B8A8_SRGB, tiling,
-                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                properties, VK_SAMPLE_COUNT_1_BIT, mipLevels);
-            if (!pixels) {
-                throw std::runtime_error("failed to load texture image!");
-            }
-
-            StageBuffer stagePixels(pixels, imageSize);
-            stbi_image_free(pixels);
-
-            transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-            copyBufferToImage(stagePixels.buffer);
-            generateMipmaps(VK_FORMAT_R8G8B8A8_SRGB);
-
-            createImageView(Image, ImageView, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
-            writeDescriptorSets();
-        }
+        Texture(const char* filename);
         ~Texture() = default;
     private:
-        void transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+        void transitionImageLayout(VkImageLayout oldLayout, VkImageLayout newLayout) {
             beginCommand();
 
             VkImageMemoryBarrier barrier
@@ -179,10 +142,10 @@ namespace vk {
 
             endCommand();
         }
-        void generateMipmaps(VkFormat imageFormat) {
+        void generateMipmaps() {
             // Check if image format supports linear blitting
             VkFormatProperties formatProperties;
-            vkGetPhysicalDeviceFormatProperties(GPU::physicalDevice, imageFormat, &formatProperties);
+            vkGetPhysicalDeviceFormatProperties(GPU::physicalDevice, format, &formatProperties);
 
             if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
                 throw std::runtime_error("texture image format does not support linear blitting!");
@@ -299,7 +262,7 @@ namespace vk {
             createImage(Image, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
             allocateImageMemory(Image, ImageMemory, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-            setImageLayout(Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+            setImageLayout(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
             
             createImageView(Image, ImageView);
 
@@ -351,12 +314,12 @@ namespace vk {
             VK_CHECK_RESULT(vkCreateImageView(GPU::device, &viewInfo, nullptr, &imageView));
         }
 
-        void setImageLayout(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout) {
+        void setImageLayout(VkImageLayout oldLayout, VkImageLayout newLayout) {
             
             beginCommand();
             VkImageMemoryBarrier memoryBarrier
             { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-            memoryBarrier.image = image;
+            memoryBarrier.image = Image;
             memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             memoryBarrier.oldLayout = oldLayout;
@@ -367,7 +330,7 @@ namespace vk {
             VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
             VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-            std::array<VkAccessFlags, 2> accessFlags = imageMap[{oldLayout, newLayout}];
+            std::array<VkAccessFlags, 2> accessFlags = transitionMap[{oldLayout, newLayout}];
             memoryBarrier.srcAccessMask = accessFlags[0];
             memoryBarrier.dstAccessMask = accessFlags[1];
 
@@ -410,88 +373,15 @@ namespace vk {
         uint32_t mipLevels;
 
         VkSampler Sampler;
-        int texWidth, texHeight, texChannels;
+        VkExtent2D extent;
+        int texChannels;
 
-        CombinedImageSampler(const char* filename)
-            : Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-        {
-            stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-            VkDeviceSize imageSize = texWidth * texHeight * 4;
-            mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
-
-            if (!pixels) {
-                throw std::runtime_error("failed to load texture image!");
-            }
-
-            VkBuffer stagingBuffer;
-            VkDeviceMemory stagingBufferMemory;
-            createBuffer(imageSize,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                stagingBuffer, stagingBufferMemory);
-
-            void* data;
-            vkMapMemory(GPU::device, stagingBufferMemory, 0, imageSize, 0, &data);
-            memcpy(data, pixels, static_cast<size_t>(imageSize));
-            vkUnmapMemory(GPU::device, stagingBufferMemory);
-
-            stbi_image_free(pixels);
-
-            createImage(VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, tiling,
-                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                properties);
-
-            transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-            copyBufferToImage(stagingBuffer);
-            //transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-
-            vkDestroyBuffer(GPU::device, stagingBuffer, nullptr);
-            vkFreeMemory(GPU::device, stagingBufferMemory, nullptr);
-
-            generateMipmaps(VK_FORMAT_R8G8B8A8_SRGB);
-            createImageView(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-            createTextureSampler();
-
-            writeDescriptorSets();
-        }
+        CombinedImageSampler(const char* filename);
         ~CombinedImageSampler() {
             vkDestroySampler(GPU::device, Sampler, nullptr);
         }
     private:
-        void createImage(VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties) {
-            VkImageCreateInfo imageInfo
-            { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-            imageInfo.imageType = VK_IMAGE_TYPE_2D;
-            imageInfo.extent.width = texWidth;
-            imageInfo.extent.height = texHeight;
-            imageInfo.extent.depth = 1;
-            imageInfo.mipLevels = mipLevels;
-            imageInfo.arrayLayers = 1;
-            imageInfo.format = format;
-            imageInfo.tiling = tiling;
-            imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            imageInfo.usage = usage;
-            imageInfo.samples = numSamples;
-            imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-            if (vkCreateImage(GPU::device, &imageInfo, nullptr, &Image) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create image!");
-            }
-
-            VkMemoryRequirements memRequirements;
-            vkGetImageMemoryRequirements(GPU::device, Image, &memRequirements);
-
-            VkMemoryAllocateInfo allocInfo{};
-            allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            allocInfo.allocationSize = memRequirements.size;
-            allocInfo.memoryTypeIndex = GPU::findMemoryType(memRequirements.memoryTypeBits, properties);
-
-            if (vkAllocateMemory(GPU::device, &allocInfo, nullptr, &ImageMemory) != VK_SUCCESS) {
-                throw std::runtime_error("failed to allocate image memory!");
-            }
-
-            vkBindImageMemory(GPU::device, Image, ImageMemory, 0);
-        }
+        void createImage(VkSampleCountFlagBits numSamples);
         void createImageView(VkFormat format, VkImageAspectFlags aspectFlags) {
             VkImageViewCreateInfo viewInfo
             { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
@@ -570,8 +460,8 @@ namespace vk {
             region.imageSubresource.layerCount = 1;
             region.imageOffset = { 0, 0, 0 };
             region.imageExtent = {
-                static_cast<uint32_t>(texWidth),
-                static_cast<uint32_t>(texHeight),
+                extent.width,
+                extent.height,
                 1
             };
 
@@ -579,10 +469,10 @@ namespace vk {
 
             endCommand();
         }
-        void generateMipmaps(VkFormat imageFormat) {
+        void generateMipmaps() {
             // Check if image format supports linear blitting
             VkFormatProperties formatProperties;
-            vkGetPhysicalDeviceFormatProperties(GPU::physicalDevice, imageFormat, &formatProperties);
+            vkGetPhysicalDeviceFormatProperties(GPU::physicalDevice, format, &formatProperties);
 
             if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
                 throw std::runtime_error("texture image format does not support linear blitting!");
@@ -600,8 +490,8 @@ namespace vk {
             barrier.subresourceRange.layerCount = 1;
             barrier.subresourceRange.levelCount = 1;
 
-            int32_t mipWidth = texWidth;
-            int32_t mipHeight = texHeight;
+            int32_t mipWidth = extent.width;
+            int32_t mipHeight = extent.height;
 
             for (uint32_t i = 1; i < mipLevels; i++) {
                 barrier.subresourceRange.baseMipLevel = i - 1;

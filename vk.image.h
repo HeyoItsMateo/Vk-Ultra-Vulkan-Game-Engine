@@ -5,7 +5,18 @@
 
 #include <thread>
 #include <execution>
-
+#include <map>
+inline std::map<std::array<VkImageLayout, 2>, std::array<VkAccessFlags, 2>> transitionMap{
+    {
+        {VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL},
+        { VK_ACCESS_NONE, VK_ACCESS_NONE } },
+    {
+        {VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
+        {VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT} },
+    {
+        {VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT} }
+};
 
 namespace vk {
     struct Image {
@@ -34,7 +45,44 @@ namespace vk {
             throw std::runtime_error("failed to find supported format!");
         }
 
-        static VkImageMemoryBarrier createImageMemoryBarrier(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout);
+        static VkBufferImageCopy createCopyRegion(VkExtent2D& extent) {
+            VkBufferImageCopy region{};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+            region.imageOffset = { 0, 0, 0 };
+            region.imageExtent = { extent.width, extent.height, 1 };
+            return region;
+        }
+
+        static VkImageBlit createBlit(int32_t mipWidth, int32_t mipHeight, uint32_t mipLevel) {
+            VkImageBlit blit{};
+            blit.srcOffsets[0] = { 0, 0, 0 };
+            blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+            blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, mipLevel - 1, 0, 1 };
+
+            blit.dstOffsets[0] = { 0, 0, 0 };
+            blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+            blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, mipLevel, 0, 1 };
+            return blit;
+        }
+        /*static VkImageMemoryBarrier createMemoryBarrier(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout) {
+            VkImageMemoryBarrier memoryBarrier
+            { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+            memoryBarrier.image = image;
+            memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            memoryBarrier.oldLayout = oldLayout;
+            memoryBarrier.newLayout = newLayout;
+
+            memoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+            std::array<VkAccessFlags, 2> accessFlags = transitionMap[{oldLayout, newLayout}];
+            memoryBarrier.srcAccessMask = accessFlags[0];
+            memoryBarrier.dstAccessMask = accessFlags[1];
+            return memoryBarrier;
+        }*/
     public:
         VkImageAspectFlagBits aspect{};
         VkFormat format;
@@ -43,7 +91,7 @@ namespace vk {
         VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
         VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-        void createImage(VkExtent2D& imageExtent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkSampleCountFlagBits msaaCount = GPU::msaaSamples, uint32_t mipLevels = 1) {
+        void createImage(VkExtent2D& imageExtent, VkSampleCountFlagBits msaaCount = GPU::msaaSamples, uint32_t mipLevels = 1) {
             VkImageCreateInfo imageInfo
             { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
             imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -94,7 +142,7 @@ namespace vk {
         }
 
         void createResource() {
-            createImage(GPU::Extent, format, tiling, usage, properties);
+            createImage(GPU::Extent);
             createImageView(Image, ImageView, format, aspect, 1);
         }
 

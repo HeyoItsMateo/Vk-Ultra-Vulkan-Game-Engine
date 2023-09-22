@@ -60,6 +60,9 @@
     <ClCompile Include="vk.image.cpp">
       <Filter>Source Files\Vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="Textures.cpp">
+      <Filter>Source Files\Game Objects</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\shader_log.bin">
@@ -139,9 +142,6 @@
     <ClInclude Include="vk.instance.h">
       <Filter>Header Files\Vulkan Engine</Filter>
     </ClInclude>
-    <ClInclude Include="Buffers.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
     <ClInclude Include="Primitives.h">
       <Filter>Header Files\Game Objects</Filter>
     </ClInclude>
@@ -156,6 +156,9 @@
     </ClInclude>
     <ClInclude Include="Scene.h">
       <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.buffers.h">
+      <Filter>Header Files\Vulkan Engine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

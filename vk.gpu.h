@@ -1,3 +1,6 @@
+#ifndef hGPU
+#define hGPU
+
 #include "vk.instance.h"
 
 #include <limits>
@@ -44,3 +47,4 @@ namespace vk {
         void getSwapExtent();
     };
 }
+#endif

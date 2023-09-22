@@ -1,4 +1,6 @@
 //#include "vk.gpu.h"
+#pragma once
+
 #include "vk.swapchain.h"
 #include "vk.cpu.h"
 
@@ -29,7 +31,9 @@
 
 #include "descriptors.h"
 
-//typedef void(__stdcall* vkDestroyFunction)(VkDevice, void ,const VkAllocationCallbacks*);
+//#define VK_DESTRUCTOR(object) VKAPI_ATTR void VKAPI_CALL vkDestroy##object(VkDevice device, Vk##object object, const VkAllocationCallbacks* pAllocator);
+//VK_DESTRUCTOR(ShaderModule)
+
 
 namespace vk {    
     struct Shader {
@@ -43,8 +47,11 @@ namespace vk {
             createShaderModule(code, filename);
         }
         ~Shader() {
-            //vkDestroyShaderModule(GPU::device, shaderModule, nullptr);
+            if (shaderModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(GPU::device, shaderModule, nullptr);
+            }
         }
+        //TODO: Create copy and move constructors
     private:
         static std::vector<char> readFile(const std::string& filename) {
             std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -77,10 +84,10 @@ namespace vk {
 
     struct Pipeline {
     public:
-        VkPipeline pipeline;
-        VkPipelineLayout layout;
+        VkPipeline pipeline{};
+        VkPipelineLayout layout{};
         std::vector<VkDescriptorSet> sets;
-        void bind() {
+        virtual void bind() {
             VkCommandBuffer& commandBuffer = EngineCPU::renderCommands[SwapChain::currentFrame];
 
             vkCmdBindDescriptorSets(commandBuffer, bindPoint, layout, 0, static_cast<uint32_t>(sets.size()), sets.data(), 0, nullptr);
@@ -91,7 +98,7 @@ namespace vk {
             std::jthread t1([&] { vkDestroyPipelineLayout(GPU::device, layout, nullptr); });
         }
     protected:
-        VkPipelineBindPoint bindPoint;
+        VkPipelineBindPoint bindPoint{};
         void vkLoadSetLayout(std::vector<VkDescriptorSetLayout>& SetLayout) {
             VkPipelineLayoutCreateInfo pipelineLayoutInfo
             { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -102,14 +109,7 @@ namespace vk {
                 throw std::runtime_error("failed to create pipeline layout!");
             }
         }
-        static VkPipelineInputAssemblyStateCreateInfo inputAssembly(VkPrimitiveTopology topology) {
-            VkPipelineInputAssemblyStateCreateInfo inputAssembly
-            { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
-            inputAssembly.topology = topology;
-            inputAssembly.primitiveRestartEnable = VK_FALSE;
-            return inputAssembly;
-        }
-        static std::vector<VkPipelineShaderStageCreateInfo> stageInfo(std::vector<Shader>& shaders) {
+        virtual std::vector<VkPipelineShaderStageCreateInfo> stageInfo(std::vector<Shader>& shaders) {
             VkPipelineShaderStageCreateInfo stageInfo{};
             stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             stageInfo.pName = "main";
@@ -122,6 +122,14 @@ namespace vk {
             }
 
             return shader_stages;
+        }
+
+        static VkPipelineInputAssemblyStateCreateInfo inputAssembly(VkPrimitiveTopology topology) {
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly
+            { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+            inputAssembly.topology = topology;
+            inputAssembly.primitiveRestartEnable = VK_FALSE;
+            return inputAssembly;
         }
         static VkPipelineViewportStateCreateInfo viewportState(uint32_t viewportCount, uint32_t scissorCount, VkViewport* pViewports = nullptr, VkRect2D* pScissors = nullptr) {
             VkPipelineViewportStateCreateInfo viewport_state
@@ -192,34 +200,54 @@ namespace vk {
     };
     template<typename primitiveType, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL>
     struct GraphicsPPL_ : Pipeline {
-        GraphicsPPL_(std::vector<Shader>& shaders, std::vector<Descriptor>& descriptorSet)
+        template<uint32_t nShaders, uint32_t setCount>
+        GraphicsPPL_(Shader(&shaders)[nShaders], Descriptor(&descriptors)[setCount])
         {
             bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-            //sets = descriptorSet.pool;
-            testSet(descriptorSet);
-            test(descriptorSet);
-            vkCreatePipeline(stageInfo(shaders));
+            size = setCount;
+            pSets = descriptors;
+            
+            //sets = descSets;
+            testDescriptorSets(descriptors, size);
+            vkCreatePipeline(stageInfo(shaders, nShaders));
         }
+        void bind() override {
+            VkCommandBuffer& commandBuffer = EngineCPU::renderCommands[SwapChain::currentFrame];
+            sets.resize(size);
+            for (int i = 0; i < size; i++) {
+                sets[i] = pSets[i].Sets[SwapChain::currentFrame];
+            }
+            vkCmdBindDescriptorSets(commandBuffer, bindPoint, layout, 0, size, sets.data(), 0, nullptr);
+            vkCmdBindPipeline(commandBuffer, bindPoint, pipeline);
+        }
+        uint32_t size;
+        Descriptor* pSets;
     private:
-        void testSet(std::vector<Descriptor>& descriptorSet) {
-            for (auto& descriptor : descriptorSet) {
-                sets.push_back(descriptor.Sets[SwapChain::currentFrame]);
+        void testDescriptorSets(Descriptor* descriptors, uint32_t setCount) {
+            std::vector<VkDescriptorSetLayout> SetLayouts(setCount);
+            for (int i = 0; i < setCount; i++) {
+                SetLayouts[i] = descriptors[i].SetLayout;
             }
-        }
-        void test(std::vector<Descriptor>& descriptorSet) {
-            std::vector<VkDescriptorSetLayout> SetLayout(descriptorSet.size());
-            for (int i = 0; i < descriptorSet.size(); i++) {
-                SetLayout[i] = descriptorSet[i].SetLayout;
-            }
-
             VkPipelineLayoutCreateInfo pipelineLayoutInfo
             { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-            pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(SetLayout.size());
-            pipelineLayoutInfo.pSetLayouts = SetLayout.data();
+            pipelineLayoutInfo.setLayoutCount = size;
+            pipelineLayoutInfo.pSetLayouts = SetLayouts.data();
 
-            if (vkCreatePipelineLayout(GPU::device, &pipelineLayoutInfo, nullptr, &layout) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create pipeline layout!");
+            VK_CHECK_RESULT(vkCreatePipelineLayout(GPU::device, &pipelineLayoutInfo, nullptr, &layout));
+        }
+
+        std::vector<VkPipelineShaderStageCreateInfo> stageInfo(Shader* shaders, uint32_t size) {
+            VkPipelineShaderStageCreateInfo stageInfo{};
+            stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            stageInfo.pName = "main";
+
+            std::vector<VkPipelineShaderStageCreateInfo> shader_stages{ size, stageInfo };
+            for (int i = 0; i < size; i++) {
+                shader_stages[i].module = shaders[i].shaderModule;
+                shader_stages[i].stage = shaders[i].shaderStage;
             }
+
+            return shader_stages;
         }
         void vkCreatePipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages) {
 
@@ -264,23 +292,35 @@ namespace vk {
             pipelineInfo.pColorBlendState = &colorBlendInfo;
             pipelineInfo.pDepthStencilState = &depthStencilInfo;
 
-            if (vkCreateGraphicsPipelines(GPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create graphics pipeline!");
-            }
+            VK_CHECK_RESULT(vkCreateGraphicsPipelines(GPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
         }
     };
 
     template<typename primitiveType, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL>
     struct GraphicsPPL : Pipeline {
-        GraphicsPPL(std::vector<Shader>& shaders, std::vector<VkDescriptorSet> const& descSets, std::vector<VkDescriptorSetLayout>& SetLayout)
+        template<uint32_t size>
+        GraphicsPPL(Shader (&shaders)[size], std::vector<VkDescriptorSet> const& descSets, std::vector<VkDescriptorSetLayout>& SetLayout)
         {
             bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
             sets = descSets;
             vkLoadSetLayout(SetLayout);
-            vkCreatePipeline(stageInfo(shaders));
+            vkCreatePipeline(stageInfo(shaders, size));
         }
 
     private:
+        std::vector<VkPipelineShaderStageCreateInfo> stageInfo(Shader* shaders, uint32_t size) {
+            VkPipelineShaderStageCreateInfo stageInfo{};
+            stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            stageInfo.pName = "main";
+
+            std::vector<VkPipelineShaderStageCreateInfo> shader_stages{size, stageInfo};
+            for (int i = 0; i < size; i++) {
+                shader_stages[i].module = shaders[i].shaderModule;
+                shader_stages[i].stage = shaders[i].shaderStage;
+            }
+
+            return shader_stages;
+        }
         void vkCreatePipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages) {
 
             VkPipelineVertexInputStateCreateInfo vertexInputInfo = primitiveType::vertexInput();
@@ -400,23 +440,13 @@ namespace vk {
         }
         void run() {
             VkCommandBuffer& commandBuffer = EngineCPU::computeCommands[SwapChain::currentFrame];
-
-            VkCommandBufferBeginInfo beginInfo
-            { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-
-            if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-                throw std::runtime_error("failed to begin recording command buffer!");
-            }
-
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, static_cast<uint32_t>(sets.size()), sets.data(), 0, nullptr);
 
             vkCmdDispatch(commandBuffer, PARTICLE_COUNT / (100), PARTICLE_COUNT / (100), PARTICLE_COUNT / (100));
 
-            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-                throw std::runtime_error("failed to record compute command buffer!");
-            }
+            
         }
     private:
         void vkCreatePipeline(Shader const& computeShader) {
@@ -431,9 +461,7 @@ namespace vk {
             pipelineInfo.layout = layout;
             pipelineInfo.stage = stageInfo;
 
-            if (vkCreateComputePipelines(GPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create compute pipeline!");
-            }
+            VK_CHECK_RESULT(vkCreateComputePipelines(GPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
         }
     };
 }

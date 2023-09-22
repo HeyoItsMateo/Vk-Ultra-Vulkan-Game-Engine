@@ -11,12 +11,14 @@ struct pop {
         std::mt19937_64 rndEngine(rand());
         for (auto& particle : particles) {
             std::uniform_real_distribution<float> rndDist(-0.79f, 0.79f);
+            std::uniform_real_distribution<float> rndMass(0.01f, 0.25f);
             std::uniform_real_distribution<float> rndColor(0.1f, 1.0f);
 
             float x = rndDist(rndEngine);
             float y = rndDist(rndEngine);
             float z = rndDist(rndEngine);
-            particle.position = glm::vec4(x, y, z, 1.f);
+            float w = rndMass(rndEngine);
+            particle.position = glm::vec4(x, y, z, w);
             particle.velocity = glm::vec4(0);
             particle.color = glm::vec4(rndColor(rndEngine), rndColor(rndEngine), rndColor(rndEngine), 1.f);
         }
@@ -40,7 +42,7 @@ namespace vk {
             std::for_each(std::execution::par, Memory.begin(), Memory.end(),
                 [&](VkDeviceMemory memory) { vkFreeMemory(GPU::device, memory, nullptr); });
         }
-        void draw(int vertexCount) {
+        void draw(int vertexCount = 1000) {
             VkCommandBuffer& commandBuffer = EngineCPU::renderCommands[SwapChain::currentFrame];
 
             VkDeviceSize offsets[] = { 0 };

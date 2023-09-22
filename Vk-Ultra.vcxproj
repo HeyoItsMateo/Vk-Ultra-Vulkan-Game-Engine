@@ -202,6 +202,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="vk.gpu.cpp" />
     <ClCompile Include="vk.graphics.cpp" />
+    <ClCompile Include="vk.image.cpp" />
     <ClCompile Include="vk.instance.cpp" />
     <ClCompile Include="vk.swapchain.cpp" />
   </ItemGroup>
@@ -209,6 +210,7 @@
     <None Include="bin\shader_log.bin" />
     <None Include="shaders\glsl\instanced.frag" />
     <None Include="shaders\glsl\instanced.vert" />
+    <None Include="shaders\glsl\plane.comp" />
     <None Include="shaders\glsl\plane.frag" />
     <None Include="shaders\glsl\plane.vert" />
     <None Include="shaders\glsl\point.comp" />
@@ -223,6 +225,7 @@
     <ClInclude Include="file_system.h" />
     <ClInclude Include="Pipeline.h" />
     <ClInclude Include="Primitives.h" />
+    <ClInclude Include="Scene.h" />
     <ClInclude Include="Textures.h" />
     <ClInclude Include="UBO.h" />
     <ClInclude Include="descriptors.h" />
@@ -251,7 +254,7 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>
-    <FxCompile Include="shaders\hlsl\pixel_frag.hlsl">
+    <FxCompile Include="shaders\hlsl\vertex_frag.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>

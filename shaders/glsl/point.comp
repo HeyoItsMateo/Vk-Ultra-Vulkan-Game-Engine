@@ -13,18 +13,18 @@ layout(binding = 0) uniform UniformBufferObject {
 } ubo;
 
 struct Particle {
-	vec4 position;
+	vec4 position; // position (x,y,z), mass (w)
     vec4 color;
     //vec2 texCoord;
     vec4 velocity;
 };
 
 layout(std140, set = 1, binding = 0) readonly buffer inSSBO {
-   Particle particlesIn[ ];
+   Particle particle_0[ ];
 };
 
 layout(std140, set = 1, binding = 1) buffer outSSBO {
-   Particle particlesOut[ ];
+   Particle particle_1[ ];
 };
 
 layout (local_size_x = 10, local_size_y = 10, local_size_z = 10) in;
@@ -45,13 +45,16 @@ const vec4 boundarySize = vec4(0.8f);
 
 
 // Calculates acceleration towards a position
-vec4 Gravity(vec4 p1, vec4 p2, float m1, float m2) {
-    vec4 rN = normalize(p2 - p1);
-    float dist2 = distance(p2, p1);
-    dist2 *= dist2;
-    return rN * ((c*c*m1 * m1 * m2) / (4 + c*c*m1*m1*dist2));
-}
+vec3 Gravity(vec4 p0, vec4 p1) {
+    float m0 = p0.w * p0.w;
+    float c2 = c*c;
 
+    vec3 rN = normalize(p1.xyz - p0.xyz);
+    float dist2 = distance(p1.xyz, p0.xyz);
+    dist2 *= dist2;
+
+    return rN * ((c2 * m0 * p1.w) / (4 + c2 * m0 * dist2));
+}
 
 float OOBcheck(float axisPosition, float axisVelocity, float axisBoundary) {
     float adjustedPosition = axisPosition;
@@ -73,33 +76,30 @@ float out_of_bounds(float axisPosition, float axisVelocity, float axisBoundary) 
 
 void main() 
 {
-    particlesOut[i].position = particlesIn[i].position;
+    //particlesOut[i].position = particlesIn[i].position;
     
     // Kinematic Motion of the Elements of the System
     if (i != j)
     {// Particle Interaction Calculations
         // Interacting Particle Properties
-        float m0 = 0.25f;
-        float m1 = 0.25f;
-        vec4 p0 = particlesIn[i].position;
-        vec4 p1 = particlesIn[j].position;
-        
+        vec4 p_i = particle_0[i].position;
+        vec4 p_j = particle_0[j].position;
         // Velocity Calculation
-        particlesOut[i].velocity += Gravity(p0, p1, m0, m1) * dt;
+        particle_1[i].velocity.xyz += Gravity(p_i, p_j) * dt;
 
-        if (length(particlesOut[i].velocity) > c/2)
+        if (length(particle_1[i].velocity.xyz) > c/2)
         {// Sets the Velocity Maximum to the Speed of Light (divided by two bc ITS TOO FAST)
-            normalize(particlesOut[i].velocity);
-            particlesOut[i].velocity *= c/2;
+            normalize(particle_1[i].velocity.xyz);
+            particle_1[i].velocity.xyz *= c/2;
         }
 
-        particlesOut[i].position += particlesOut[i].velocity * dt;
+        particle_1[i].position.xyz += particle_1[i].velocity.xyz * dt;
         //particlesOut[i].velocity = particlesIn[i].velocity;
 
         // Flip movement at window border
-        particlesOut[i].position.x = out_of_bounds(particlesOut[i].position.x, particlesOut[i].velocity.x, boundarySize.x);
-        particlesOut[i].position.y = out_of_bounds(particlesOut[i].position.y, particlesOut[i].velocity.y, boundarySize.y);
-        particlesOut[i].position.z = out_of_bounds(particlesOut[i].position.z, particlesOut[i].velocity.z, boundarySize.z);
+        particle_1[i].position.x = out_of_bounds(particle_1[i].position.x, particle_1[i].velocity.x, boundarySize.x);
+        particle_1[i].position.y = out_of_bounds(particle_1[i].position.y, particle_1[i].velocity.y, boundarySize.y);
+        particle_1[i].position.z = out_of_bounds(particle_1[i].position.z, particle_1[i].velocity.z, boundarySize.z);
         /*
         if (out_of_bounds(particlesOut[i].position.y, boundarySize.y)) {
             particlesOut[i].velocity.y = -particlesOut[i].velocity.y;

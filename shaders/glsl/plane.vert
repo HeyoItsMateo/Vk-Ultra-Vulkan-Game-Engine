@@ -21,8 +21,19 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     camera cam; 
 } ubo;
 
+layout(set = 1, binding = 0) uniform model_UBO{
+    mat4 matrix;
+} plane;
+
+layout(set = 2, binding = 0) uniform sampler imageSampler;
+
+layout (set = 3, binding = 0) uniform readonly image2D heightMap;
+
 void main() {
-    gl_Position = ubo.cam.proj * ubo.cam.view * inPosition;
+    vec4 heightData = imageLoad(heightMap, ivec2(inPosition.xz));
+    vec4 pos = vec4(inPosition.x, length(heightData), inPosition.z, inPosition[3]);
+
+    gl_Position = ubo.cam.proj * ubo.cam.view * plane.matrix * pos;
     fragColor = inColor;
     fragNormal = inNormal;
     fragTexCoord = inTexCoord;

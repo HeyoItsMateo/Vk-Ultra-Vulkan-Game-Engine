@@ -34,22 +34,31 @@
     <Filter Include="Resource Files\shaders\hlsl">
       <UniqueIdentifier>{602a3008-42c8-4f87-b1de-dec27e3bf9f4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Vulkan">
+      <UniqueIdentifier>{00709f71-0a9d-4028-a220-5314c34d4dc3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Game Objects">
+      <UniqueIdentifier>{9b80c096-aff3-4fb8-bbb6-d2c584672ce9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="vk.gpu.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="vk.instance.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="vk.swapchain.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="vk.gpu.cpp">
+      <Filter>Source Files\Vulkan</Filter>
     </ClCompile>
     <ClCompile Include="vk.graphics.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.swapchain.cpp">
+      <Filter>Source Files\Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.image.cpp">
+      <Filter>Source Files\Vulkan</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -81,6 +90,9 @@
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
     <None Include="shaders\glsl\plane.vert">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="shaders\glsl\plane.comp">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
   </ItemGroup>
@@ -142,12 +154,15 @@
     <ClInclude Include="Pipeline.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shaders\hlsl\vertex_vert.hlsl">
       <Filter>Resource Files\shaders\hlsl</Filter>
     </FxCompile>
-    <FxCompile Include="shaders\hlsl\pixel_frag.hlsl">
+    <FxCompile Include="shaders\hlsl\vertex_frag.hlsl">
       <Filter>Resource Files\shaders\hlsl</Filter>
     </FxCompile>
     <FxCompile Include="shaders\hlsl\plane_vert.hlsl">

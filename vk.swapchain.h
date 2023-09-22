@@ -1,8 +1,7 @@
+#ifndef hSwapChain
+#define hSwapChain
+
 #include "vk.gpu.h"
-
-#include <thread>
-#include <execution>
-
 #include "vk.image.h"
 
 namespace vk {
@@ -60,3 +59,4 @@ namespace vk {
         
     };
 }
+#endif

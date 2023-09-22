@@ -4,15 +4,28 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <map>
+
 #include "vk.cpu.h"
-#include "vk.image.h"
 #include "descriptors.h"
 
+std::map<std::array<VkImageLayout, 2>, std::array<VkAccessFlags, 2>> imageMap
+{
+    {
+        {VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL},
+        {VK_ACCESS_NONE, VK_ACCESS_NONE} },
+    {
+        {VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
+        {VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT} },
+    {
+        {VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT} }
+};
+
 namespace vk {
-    template<VkShaderStageFlagBits shaderStage = VK_SHADER_STAGE_FRAGMENT_BIT>
     struct Sampler : Descriptor {
         VkSampler sampler;
-        Sampler(float mipLevels) : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLER, shaderStage) {
+        Sampler(uint32_t mipLevels = 1, VkShaderStageFlagBits shaderFlags = VK_SHADER_STAGE_FRAGMENT_BIT) : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLER, shaderFlags) {
             VkPhysicalDeviceProperties properties{};
             vkGetPhysicalDeviceProperties(GPU::physicalDevice, &properties);
 
@@ -277,6 +290,121 @@ namespace vk {
         }
     };
 
+    struct ComputeImage : Image, Command, Descriptor {
+        ComputeImage(VkShaderStageFlagBits stageFlags = VK_SHADER_STAGE_VERTEX_BIT)
+            : Descriptor(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT | stageFlags)
+        {
+            VkExtent2D extent = { 30, 20 };
+
+            createImage(Image, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+            allocateImageMemory(Image, ImageMemory, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+            setImageLayout(Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+            
+            createImageView(Image, ImageView);
+
+            writeDescriptorSets();
+        }
+    private:
+        void createImage(VkImage& image, VkExtent2D& extent, VkImageUsageFlags usageFlags, VkImageTiling imgTiling = VK_IMAGE_TILING_OPTIMAL) {
+            VkImageCreateInfo imageInfo
+            { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+            imageInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+            imageInfo.usage = usageFlags;
+            imageInfo.tiling = imgTiling;
+
+            imageInfo.extent = { extent.width, extent.height, 1 };
+            imageInfo.mipLevels = 1;
+            imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+            imageInfo.arrayLayers = 1;
+            
+            imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            //imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+            VK_CHECK_RESULT(vkCreateImage(GPU::device, &imageInfo, nullptr, &Image));
+        }
+        void allocateImageMemory(VkImage& image, VkDeviceMemory& imageMemory, VkMemoryPropertyFlags memProperties) {
+            VkMemoryRequirements memRequirements;
+            vkGetImageMemoryRequirements(GPU::device, image, &memRequirements);
+
+            VkMemoryAllocateInfo allocInfo
+            { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+            allocInfo.allocationSize = memRequirements.size;
+            allocInfo.memoryTypeIndex = GPU::findMemoryType(memRequirements.memoryTypeBits, memProperties);
+
+            VK_CHECK_RESULT(vkAllocateMemory(GPU::device, &allocInfo, nullptr, &imageMemory));
+
+            vkBindImageMemory(GPU::device, image, imageMemory, 0);
+        }
+        void createImageView(VkImage& image, VkImageView& imageView, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT) {
+            VkImageViewCreateInfo viewInfo
+            { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+            viewInfo.image = image;
+            viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            /* Subresource Info */
+            viewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+            VK_CHECK_RESULT(vkCreateImageView(GPU::device, &viewInfo, nullptr, &imageView));
+        }
+
+        void setImageLayout(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout) {
+            
+            beginCommand();
+            VkImageMemoryBarrier memoryBarrier
+            { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+            memoryBarrier.image = image;
+            memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            memoryBarrier.oldLayout = oldLayout;
+            memoryBarrier.newLayout = newLayout;
+            
+            memoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+            VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+            std::array<VkAccessFlags, 2> accessFlags = imageMap[{oldLayout, newLayout}];
+            memoryBarrier.srcAccessMask = accessFlags[0];
+            memoryBarrier.dstAccessMask = accessFlags[1];
+
+            vkCmdPipelineBarrier(
+                Command::cmdBuffer,
+                srcStageMask, dstStageMask,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &memoryBarrier
+            );
+
+            endCommand();
+        }
+        void writeDescriptorSets(uint32_t bindingCount = 1) override {
+            VkWriteDescriptorSet allocWrite
+            { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            allocWrite.dstArrayElement = 0;
+            allocWrite.descriptorCount = 1;
+            allocWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount, allocWrite);
+
+            VkDescriptorImageInfo allocImage{};
+            allocImage.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            allocImage.imageView = ImageView;
+            std::vector<VkDescriptorImageInfo> imageInfo(bindingCount, allocImage);
+
+            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+                descriptorWrites[i].dstSet = Sets[i];
+                for (uint32_t j = 0; j < bindingCount; j++) {
+                    descriptorWrites[j].dstBinding = j;
+                    descriptorWrites[j].pImageInfo = &imageInfo[j];
+                }
+            }
+            vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
+        }
+    };
 
     struct CombinedImageSampler : Image, Command, Descriptor {
         uint32_t mipLevels;

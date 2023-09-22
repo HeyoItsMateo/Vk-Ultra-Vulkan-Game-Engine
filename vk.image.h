@@ -1,6 +1,12 @@
 #ifndef hImage
 #define hImage
 
+#include "vk.gpu.h"
+
+#include <thread>
+#include <execution>
+
+
 namespace vk {
     struct Image {
         VkImage Image;
@@ -27,8 +33,10 @@ namespace vk {
 
             throw std::runtime_error("failed to find supported format!");
         }
+
+        static VkImageMemoryBarrier createImageMemoryBarrier(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout);
     public:
-        VkImageAspectFlagBits aspect;
+        VkImageAspectFlagBits aspect{};
         VkFormat format;
         VkImageUsageFlags usage;
         
@@ -51,23 +59,9 @@ namespace vk {
             imageInfo.samples = msaaCount;
             imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-            if (vkCreateImage(GPU::device, &imageInfo, nullptr, &Image) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create image!");
-            }
+            VK_CHECK_RESULT(vkCreateImage(GPU::device, &imageInfo, nullptr, &Image));
 
-            VkMemoryRequirements memRequirements;
-            vkGetImageMemoryRequirements(GPU::device, Image, &memRequirements);
-
-            VkMemoryAllocateInfo allocInfo
-            { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-            allocInfo.allocationSize = memRequirements.size;
-            allocInfo.memoryTypeIndex = GPU::findMemoryType(memRequirements.memoryTypeBits, properties);
-
-            if (vkAllocateMemory(GPU::device, &allocInfo, nullptr, &ImageMemory) != VK_SUCCESS) {
-                throw std::runtime_error("failed to allocate image memory!");
-            }
-
-            vkBindImageMemory(GPU::device, Image, ImageMemory, 0);
+            allocateMemory(Image, ImageMemory, properties);
         }
         static void createImageView(VkImage& image, VkImageView& view, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) {
             VkImageViewCreateInfo viewInfo
@@ -81,11 +75,24 @@ namespace vk {
             viewInfo.subresourceRange.baseArrayLayer = 0;
             viewInfo.subresourceRange.layerCount = 1;
 
-            if (vkCreateImageView(GPU::device, &viewInfo, nullptr, &view) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create image view!");
-            }
+            VK_CHECK_RESULT(vkCreateImageView(GPU::device, &viewInfo, nullptr, &view));
         }
         
+        static void allocateMemory(VkImage& image, VkDeviceMemory& imageMemory, VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+        {
+            VkMemoryRequirements memRequirements;
+            vkGetImageMemoryRequirements(GPU::device, image, &memRequirements);
+
+            VkMemoryAllocateInfo allocInfo
+            { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+            allocInfo.allocationSize = memRequirements.size;
+            allocInfo.memoryTypeIndex = GPU::findMemoryType(memRequirements.memoryTypeBits, properties);
+
+            VK_CHECK_RESULT(vkAllocateMemory(GPU::device, &allocInfo, nullptr, &imageMemory));
+
+            vkBindImageMemory(GPU::device, image, imageMemory, 0);
+        }
+
         void createResource() {
             createImage(GPU::Extent, format, tiling, usage, properties);
             createImageView(Image, ImageView, format, aspect, 1);
@@ -104,6 +111,30 @@ namespace vk {
             format = VK_FORMAT_B8G8R8A8_SRGB;
             usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         }
+        static VkAttachmentDescription createAttachment() {
+            VkAttachmentDescription attachment{};
+            attachment.format = VK_FORMAT_B8G8R8A8_SRGB;
+            attachment.samples = GPU::msaaSamples;
+            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            return attachment;
+        }
+        static VkAttachmentDescription createResolve() {
+            VkAttachmentDescription resolve{};
+            resolve.format = VK_FORMAT_B8G8R8A8_SRGB;
+            resolve.samples = VK_SAMPLE_COUNT_1_BIT;
+            resolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            resolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            resolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            resolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            resolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            return resolve;
+        }
     };
     struct Depth : Image {
         Depth() {   
@@ -115,7 +146,18 @@ namespace vk {
             );
             usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         }
+        VkAttachmentDescription createAttachment() {
+            VkAttachmentDescription attachment{};
+            attachment.format = format;
+            attachment.samples = GPU::msaaSamples;
+            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            return attachment;
+        }
     };
 }
-
 #endif

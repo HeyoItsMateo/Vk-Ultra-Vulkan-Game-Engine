@@ -61,7 +61,7 @@ namespace vk {
     public:
         VkBuffer buffer;
         void update(const void* content, VkBuffer& dstBuffer) {
-            memcpy(data, content, size);
+            memcpy(data, content, static_cast<size_t>(size));
             transferData(dstBuffer);
         }
         void transferData(VkBuffer& dstBuffer) {
@@ -70,6 +70,24 @@ namespace vk {
             VkBufferCopy copyRegion{};
             copyRegion.size = size;
             vkCmdCopyBuffer(Command::cmdBuffer, buffer, dstBuffer, 1, &copyRegion);
+
+            endCommand();
+        }
+        void transferImage(VkImage& dstImage, VkExtent3D imageExtent) {
+            beginCommand();
+
+            VkBufferImageCopy region{};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = { 0, 0, 0 };
+            region.imageExtent = imageExtent;
+
+            vkCmdCopyBufferToImage(Command::cmdBuffer, buffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
             endCommand();
         }

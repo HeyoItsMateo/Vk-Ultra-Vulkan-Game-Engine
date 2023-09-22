@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdint>
+#include <cassert>
 
 #include <stdexcept>
 
@@ -21,6 +22,15 @@ const bool enableValidationLayers = false;
 const bool enableValidationLayers = true;
 #endif
 
+
+#define VK_CHECK_RESULT(vk_result) {\
+	if (vk_result) {\
+		std::cout << "Fatal : VkResult is \"" << errorString(vk_result) << "\" in " << __FILE__ << " at line " << __LINE__ << "\n"; \
+		assert(vk_result == VK_SUCCESS);\
+	}\
+}
+
+std::string errorString(VkResult errorCode);
 
 namespace vk {
     struct Window {

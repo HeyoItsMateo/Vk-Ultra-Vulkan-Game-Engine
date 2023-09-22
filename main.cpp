@@ -16,12 +16,10 @@ vk::UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 pop population(1000);
 vk::SSBO ssbo(population.particles, VK_SHADER_STAGE_COMPUTE_BIT);
 
+vk::CombinedImageSampler planksImageSampler("textures/planks.png");
+
 vk::Texture planks("textures/planks.png");
-
-vk::Texture_ testPlanks("textures/planks.png");
-vk::Sampler sampler(testPlanks.mipLevels);
-
-
+vk::Sampler sampler(planks.mipLevels);
 
 std::vector<triangleList> vertices = {
     {{-0.5f,  0.5f,  0.5f, 1.f}, {-0.5f,  0.5f,  0.5f, 1.f}, {1.0f, 0.0f, 0.0f, 1.f}, {0.0f, 0.0f}},
@@ -40,42 +38,57 @@ const std::vector<uint16_t> indices = {
 };
 vk::Mesh model(vertices, indices);
 
-std::vector<VkDescriptorSet> testSet{
+std::vector<VkDescriptorSet> plankSet{
     ubo.Sets[vk::SwapChain::currentFrame],
     sampler.Sets[vk::SwapChain::currentFrame],
-    testPlanks.Sets[vk::SwapChain::currentFrame]
+    planks.Sets[vk::SwapChain::currentFrame]
 };
-std::vector<VkDescriptorSetLayout> testLayouts{
+std::vector<VkDescriptorSetLayout> plankLayout{
     ubo.SetLayout,
     sampler.SetLayout,
-    testPlanks.SetLayout
+    planks.SetLayout
 };
-std::vector<vk::Shader> test{
+
+//vk::Descriptor descriptors[] = {
+//    vk::UBO{ uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT },
+//    vk::Sampler{ planks.mipLevels },
+//    vk::Texture{ "textures/planks.png" }
+//};
+
+vk::Shader plankShaders[] = {
     {"vertex.vert", VK_SHADER_STAGE_VERTEX_BIT},
     {"vertex.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
 };
+vk::GraphicsPPL<triangleList> graphicsPPL(plankShaders, plankSet, plankLayout);
 
-vk::GraphicsPPL<triangleList> testPPL(test, testSet, testLayouts);
 
-//std::vector<vk::Texture> textures{planks};
+
 
 
 vk::Plane plane({ 30, 20 }, { 0.25, 0.25 });
 
-std::vector<VkDescriptorSet> descSet1{
+vk::UBO modMat(plane.matrix, VK_SHADER_STAGE_VERTEX_BIT);
+vk::Sampler topographySampler(VK_SHADER_STAGE_VERTEX_BIT);
+vk::ComputeImage heightMap;
+
+std::vector<VkDescriptorSet> planeSet{
     ubo.Sets[vk::SwapChain::currentFrame],
-    ssbo.Sets[vk::SwapChain::currentFrame]
+    modMat.Sets[vk::SwapChain::currentFrame],
+    topographySampler.Sets[vk::SwapChain::currentFrame],
+    heightMap.Sets[vk::SwapChain::currentFrame]
 };
-std::vector<VkDescriptorSetLayout> SetLayouts{
+std::vector<VkDescriptorSetLayout> planeLayout {
     ubo.SetLayout,
-    ssbo.SetLayout
+    modMat.SetLayout,
+    topographySampler.SetLayout,
+    heightMap.SetLayout
 };
-std::vector<vk::Shader> planeShaders {
+
+vk::Shader planeShaders[] = {
     {"plane.vert", VK_SHADER_STAGE_VERTEX_BIT},
     {"plane.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
 };
-
-vk::GraphicsPPL<triangleList, VK_POLYGON_MODE_LINE> pipeline(planeShaders, descSet1, SetLayouts);
+vk::GraphicsPPL<triangleList, VK_POLYGON_MODE_LINE> planePPL(planeShaders, planeSet, planeLayout);
 
 vk::Octree tree(vertices, 0.01f);
 vk::SSBO modelSSBO(tree.matrices, VK_SHADER_STAGE_VERTEX_BIT);
@@ -88,23 +101,37 @@ std::vector<VkDescriptorSetLayout> SetLayouts_2{
     ubo.SetLayout,
     modelSSBO.SetLayout
 };
-std::vector<vk::Shader> octreeShaders = {
+vk::Shader octreeShaders[] = {
     {"instanced.vert", VK_SHADER_STAGE_VERTEX_BIT},
     {"instanced.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
 };
-
 vk::GraphicsPPL<lineList> octreePPL(octreeShaders, descSet2, SetLayouts_2);//descSet2
 
-vk::Shader compShader("point.comp", VK_SHADER_STAGE_COMPUTE_BIT);
-vk::ComputePPL computePPL(compShader, descSet1, SetLayouts);
-
-std::vector<vk::Shader> pointShaders {
+std::vector<VkDescriptorSet> pointSet{
+    ubo.Sets[vk::SwapChain::currentFrame],
+    ssbo.Sets[vk::SwapChain::currentFrame]
+};
+std::vector<VkDescriptorSetLayout> pointLayout{
+    ubo.SetLayout,
+    ssbo.SetLayout
+};
+vk::Shader pointShaders[] = {
     {"point.vert", VK_SHADER_STAGE_VERTEX_BIT}, 
     {"point.frag", VK_SHADER_STAGE_FRAGMENT_BIT} 
 };
+vk::GraphicsPPL<Particle, VK_POLYGON_MODE_POINT> particlePPL(pointShaders, pointSet, pointLayout);
 
-vk::GraphicsPPL<Particle, VK_POLYGON_MODE_POINT> particlePPL(pointShaders, descSet1, SetLayouts);
+vk::Scene world[] = {
+    {planePPL, plane},
+    {octreePPL, tree.rootNode}
+};
 
+vk::Shader imageCompute("plane.comp", VK_SHADER_STAGE_COMPUTE_BIT);
+vk::Shader particleCompute("point.comp", VK_SHADER_STAGE_COMPUTE_BIT);
+vk::ComputePPL computePPL[] = {
+    {imageCompute, planeSet, planeLayout},
+    {particleCompute, pointSet, pointLayout}
+};
 //TODO: Create compute shader that generates a texture/image
 //TODO: Make copy and move operators for pretty much everything
 
@@ -118,7 +145,6 @@ VkPhysicalDeviceProperties properties;
 int main() {
     //TODO: Make physical device properties file
     vkGetPhysicalDeviceProperties(vk::GPU::physicalDevice, &properties);
-
     try {
         while (!glfwWindowShouldClose(vk::Window::handle)) {
             glfwPollEvents();
@@ -126,7 +152,7 @@ int main() {
             
             //tree.updateTree(vertices);
             ubo.update(uniforms);
-            app.run(testPPL, octreePPL, model, tree.rootNode, particlePPL, computePPL, ssbo);
+            app.run(world, computePPL, particlePPL, ssbo);
             
         }
         vkDeviceWaitIdle(vk::GPU::device);

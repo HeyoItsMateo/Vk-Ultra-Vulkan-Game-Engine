@@ -21,8 +21,19 @@ namespace vk {
         }
     };
 
-    struct CPU_ {
+    struct CPU_: Fence {
+        //template<int size>
+        //static void submitCommands(VkCommandBuffer(&pCommands)[size]) {
+        //    VkSubmitInfo submitInfo
+        //    { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+        //    submitInfo.commandBufferCount = size; //TODO: find out how to allocate two or more command buffers
+        //    submitInfo.pCommandBuffers = pCommands;
 
+        //    vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, fence);
+        //    signal();
+
+        //    //vkFreeCommandBuffers(GPU::device, pool, 1, pCommands);
+        //}
     };
 
     struct CPU {
@@ -46,13 +57,11 @@ namespace vk {
         Command() {
             VkCommandBufferAllocateInfo allocInfo
             { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-            allocInfo.commandPool = pool;
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocInfo.commandPool = pool;
             allocInfo.commandBufferCount = 1;
 
-            if (vkAllocateCommandBuffers(GPU::device, &allocInfo, &cmdBuffer) != VK_SUCCESS) {
-                throw std::runtime_error("failed to allocate command buffers!");
-            }
+            VK_CHECK_RESULT(vkAllocateCommandBuffers(GPU::device, &allocInfo, &cmdBuffer));
         }
         //TODO: Parallelize single time commands
         void beginCommand() {
@@ -62,13 +71,13 @@ namespace vk {
             allocInfo.commandPool = pool;
             allocInfo.commandBufferCount = 1; //TODO: find out how to allocate two command buffers for parallel writing/submission
 
-            vkAllocateCommandBuffers(GPU::device, &allocInfo, &cmdBuffer);
+            VK_CHECK_RESULT(vkAllocateCommandBuffers(GPU::device, &allocInfo, &cmdBuffer));
 
             VkCommandBufferBeginInfo beginInfo
             { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-            vkBeginCommandBuffer(cmdBuffer, &beginInfo);
+            VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
         }
         void endCommand() {
             vkEndCommandBuffer(cmdBuffer);
@@ -192,9 +201,7 @@ namespace vk {
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &computeFinishedSemaphores[SwapChain::currentFrame];
 
-            if (vkQueueSubmit(GPU::computeQueue, 1, &submitInfo, computeInFlightFences[SwapChain::currentFrame]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to submit compute command buffer!");
-            };
+            VK_CHECK_RESULT(vkQueueSubmit(GPU::computeQueue, 1, &submitInfo, computeInFlightFences[SwapChain::currentFrame]));
         }
         void vkSubmitGraphicsQueue() {
             VkSemaphore waitSemaphores[] = { computeFinishedSemaphores[SwapChain::currentFrame], imageAvailableSemaphores[SwapChain::currentFrame] };
@@ -210,9 +217,7 @@ namespace vk {
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &renderFinishedSemaphores[SwapChain::currentFrame];
 
-            if (vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, inFlightFences[SwapChain::currentFrame]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to submit draw command buffer!");
-            }
+            VK_CHECK_RESULT(vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, inFlightFences[SwapChain::currentFrame]));
         }
     private:
         void createCommandBuffers(std::vector<VkCommandBuffer>& buffers) {
@@ -224,9 +229,7 @@ namespace vk {
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocInfo.commandBufferCount = (uint32_t)buffers.size();
 
-            if (vkAllocateCommandBuffers(GPU::device, &allocInfo, buffers.data()) != VK_SUCCESS) {
-                throw std::runtime_error("failed to allocate command buffers!");
-            }
+            VK_CHECK_RESULT(vkAllocateCommandBuffers(GPU::device, &allocInfo, buffers.data()));
         }
     };
 }

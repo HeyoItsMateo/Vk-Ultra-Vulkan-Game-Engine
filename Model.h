@@ -5,6 +5,7 @@
 
 namespace vk {
     struct Mesh {
+        alignas (16) glm::mat4 matrix = glm::mat4(1.f);
         template <typename T>
         inline Mesh(std::vector<T> vertices, std::vector<uint16_t> indices) 
             : indexCount(static_cast<uint32_t>(indices.size())),
@@ -40,7 +41,6 @@ namespace vk {
     struct Voxel : Mesh {
         glm::vec4 center;
         glm::vec4 dimensions{ 1.f };
-        glm::mat4 matrix;
         Voxel(glm::vec4 Center = { 0,0,0,1 }, glm::vec4 Dimensions = { 1,1,1,1 })
             : Mesh(createVertices(), createIndices())
         {
@@ -133,6 +133,8 @@ namespace vk {
         Plane(glm::vec2 Dimensions, glm::vec2 Resolution)
             : Mesh(createVertices(Dimensions, Resolution), createIndices(Dimensions)) 
         {
+            glm::vec2 temp = Dimensions * Resolution;
+            matrix = glm::translate(matrix, glm::vec3(-temp.x / 2.f, 0.f, -temp.y / 2.f));
         }
     private:
         std::vector<triangleList> createVertices(glm::vec2 dimensions, glm::vec2 resolution) {

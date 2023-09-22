@@ -1,4 +1,8 @@
+#ifndef hEngine
+#define hEngine
+
 #include "vk.graphics.h"
+#include "Scene.h"
 
 #include "UBO.h"
 #include "SSBO.h"
@@ -29,19 +33,25 @@ namespace vk {
             break;
         }
     }
-
+    
     struct Engine : SwapChain, EngineCPU {
-        void run(Pipeline& pipeline0, Pipeline& pipeline1, Mesh& gameObject0, Mesh& octree, Pipeline& particlePipeline, ComputePPL& computePipeline, SSBO& ssbo) {
+        template <int sceneCount, int computeCount>
+        void run(Scene(&scene)[sceneCount], ComputePPL(&compute)[computeCount], Pipeline& particlePPL, SSBO& ssbo) {
             std::jthread t1(&Engine::deltaTime, this);
 
             uint32_t imageIndex;
             vkAquireImage(imageIndex);
             // Compute Queue
-            runCompute(computePipeline);
-            // Render Queue
-            renderScene(pipeline0, pipeline1, gameObject0, octree, particlePipeline, ssbo, imageIndex);
+            vkComputeSync();
+            runCompute(compute);
+            vkSubmitComputeQueue();
 
+            // Render Queue
+            vkRenderSync();
+            runGraphics(scene, particlePPL, ssbo, imageIndex);
             vkSubmitGraphicsQueue();
+
+            /* Present Image */
             vkPresentImage(imageIndex);
 
             currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -63,34 +73,30 @@ namespace vk {
         }
 
     private:
-        void runCompute(ComputePPL& pipeline) {
-            vkComputeSync();
-            pipeline.run();
-            vkSubmitComputeQueue();
+        void vkAquireImage(uint32_t& imageIndex) {
+            VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+            if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+                recreateSwapChain();
+                return;
+            }
+            else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+                throw std::runtime_error("failed to acquire swap chain image!");
+            }
         }
-        void renderScene(Pipeline& pipeline0, Pipeline& pipeline1, Mesh& gameObject0, Mesh& gameObject1, Pipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
-            vkRenderSync();
-            beginRender(imageIndex);
-
-            particlePipeline.bind();
-            ssbo.draw(1000);
-
-            pipeline0.bind();
-            gameObject0.draw();
-
-            pipeline1.bind();
-            gameObject1.draw();
-
-            endRender();
-        }
-        void beginRender(uint32_t& imageIndex) {
+        template <int size>
+        void runCompute(ComputePPL(&compute)[size]) {
             VkCommandBufferBeginInfo beginInfo
             { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 
-            if (vkBeginCommandBuffer(renderCommands[currentFrame], &beginInfo) != VK_SUCCESS) {
-                throw std::runtime_error("failed to begin recording command buffer!");
+            VK_CHECK_RESULT(vkBeginCommandBuffer(computeCommands[currentFrame], &beginInfo));
+            for (int i = 0; i < size; i++) {
+                compute[i].run();
             }
+            VK_CHECK_RESULT(vkEndCommandBuffer(computeCommands[currentFrame]));
+        }
 
+        void beginRenderPass(uint32_t& imageIndex) {
             std::array<VkClearValue, 2> clearValues{};
             clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
             clearValues[1].depthStencil = { 1.0f, 0 };
@@ -104,40 +110,37 @@ namespace vk {
             renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
             renderPassInfo.pClearValues = clearValues.data();
 
-            VkViewport viewport{};
-            viewport.x = 0.0f;
-            viewport.y = 0.0f;
-            viewport.width = (float)Extent.width;
-            viewport.height = (float)Extent.height;
-            viewport.minDepth = 0.0f;
-            viewport.maxDepth = 1.0f;
+            VkViewport viewport = createViewPort();
+            VkRect2D scissor = createScissor({ 0, 0 });
 
-            VkRect2D scissor{};
-            scissor.offset = { 0, 0 };
-            scissor.extent = Extent;
+            VkCommandBufferBeginInfo beginInfo
+            { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+
+            VK_CHECK_RESULT(vkBeginCommandBuffer(renderCommands[currentFrame], &beginInfo));
 
             vkCmdBeginRenderPass(renderCommands[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdSetViewport(renderCommands[currentFrame], 0, 1, &viewport);
             vkCmdSetScissor(renderCommands[currentFrame], 0, 1, &scissor);
         }
-        void endRender() {
+        template <int size>
+        void runGraphics(Scene(&scene)[size], Pipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
+            beginRenderPass(imageIndex);
+
+            particlePipeline.bind();
+            ssbo.draw();
+
+            for (int i = 0; i < size; i++) {
+                scene[i].render();
+            }
+
+            endRenderPass();
+        }
+        void endRenderPass() {
             vkCmdEndRenderPass(renderCommands[currentFrame]);
-            if (vkEndCommandBuffer(renderCommands[currentFrame]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to record command buffer!");
-            }
+            VK_CHECK_RESULT(vkEndCommandBuffer(renderCommands[currentFrame]));
         }
 
-        void vkAquireImage(uint32_t& imageIndex) {
-            VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-            if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-                recreateSwapChain();
-                return;
-            }
-            else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-                throw std::runtime_error("failed to acquire swap chain image!");
-            }
-        }
+        
         void vkPresentImage(uint32_t& imageIndex) {
             VkPresentInfoKHR presentInfo
             { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
@@ -157,6 +160,24 @@ namespace vk {
                 throw std::runtime_error("failed to present swap chain image!");
             }
         }
+
+        VkViewport createViewPort(VkExtent2D& extent = Extent) {
+            VkViewport viewport{};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = (float)extent.width;
+            viewport.height = (float)extent.height;
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+            return viewport;
+        }
+        VkRect2D createScissor(VkOffset2D offset, VkExtent2D& extent = Extent) {
+            VkRect2D scissor{};
+            scissor.offset = offset;
+            scissor.extent = extent;
+            return scissor;
+        }
     };
 }
 
+#endif

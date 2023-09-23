@@ -1,6 +1,11 @@
 #ifndef hUBO
 #define hUBO
 
+#include "Camera.h"
+
+#include "vk.buffers.h"
+#include "descriptors.h"
+
 namespace vk {
     struct Uniforms {
         double dt = 1.0;

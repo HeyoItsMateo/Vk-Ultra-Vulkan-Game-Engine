@@ -1,4 +1,6 @@
 #include "vk.engine.h"
+#include "Textures.h"
+#include "Octree.h"
 
 #include <algorithm>
 #include <functional>
@@ -65,7 +67,7 @@ vk::GraphicsPPL<triangleList> graphicsPPL(plankShaders, plankSet, plankLayout);
 
 
 
-vk::Plane plane({ 30, 20 }, { 0.25, 0.25 });
+vk::Plane plane({ 300, 200 }, { 0.025, 0.025 });
 
 vk::UBO modMat(plane.matrix, VK_SHADER_STAGE_VERTEX_BIT);
 vk::Sampler topographySampler(VK_SHADER_STAGE_VERTEX_BIT);
@@ -83,6 +85,10 @@ std::vector<VkDescriptorSetLayout> planeLayout {
     topographySampler.SetLayout,
     heightMap.SetLayout
 };
+//
+//vk::Descriptor planeDescriptors[] = {
+//    ubo, modMat, topographySampler, heightMap
+//};
 
 vk::Shader planeShaders[] = {
     {"plane.vert", VK_SHADER_STAGE_VERTEX_BIT},

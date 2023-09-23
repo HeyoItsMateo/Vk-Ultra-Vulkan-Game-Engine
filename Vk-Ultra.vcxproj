@@ -202,9 +202,9 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Textures.cpp" />
     <ClCompile Include="vk.gpu.cpp" />
-    <ClCompile Include="vk.graphics.cpp" />
     <ClCompile Include="vk.image.cpp" />
     <ClCompile Include="vk.instance.cpp" />
+    <ClCompile Include="vk.shader.cpp" />
     <ClCompile Include="vk.swapchain.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -223,8 +223,6 @@
   <ItemGroup>
     <ClInclude Include="vk.buffers.h" />
     <ClInclude Include="Camera.h" />
-    <ClInclude Include="file_system.h" />
-    <ClInclude Include="Pipeline.h" />
     <ClInclude Include="Primitives.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="Textures.h" />
@@ -234,12 +232,16 @@
     <ClInclude Include="Octree.h" />
     <ClInclude Include="SSBO.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="vk.compute.h" />
     <ClInclude Include="vk.cpu.h" />
     <ClInclude Include="vk.engine.h" />
     <ClInclude Include="vk.graphics.h" />
+    <ClInclude Include="vk.graphics.ipp" />
     <ClInclude Include="vk.image.h" />
     <ClInclude Include="vk.instance.h" />
     <ClInclude Include="vk.gpu.h" />
+    <ClInclude Include="vk.pipeline.h" />
+    <ClInclude Include="vk.shader.h" />
     <ClInclude Include="vk.swapchain.h" />
   </ItemGroup>
   <ItemGroup>

@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef hInstance
+#define hInstance
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -130,3 +133,5 @@ struct Utilities {
         return depthStencil;
     }
 };
+
+#endif

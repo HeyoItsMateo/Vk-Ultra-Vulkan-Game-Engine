@@ -1,8 +1,17 @@
 #ifndef hCamera
 #define hCamera
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtx/vector_angle.hpp>
+
 namespace vk {
-    void gravity(glm::vec3& position, float& velocity) {
+    inline void gravity(glm::vec3& position, float& velocity) {
         double currentTime = glfwGetTime();
         double dt = (currentTime - SwapChain::lastTime);
         position.y += velocity * dt - 9.8 * 0.5 * dt * dt;

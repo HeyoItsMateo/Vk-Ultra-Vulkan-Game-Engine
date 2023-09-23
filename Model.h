@@ -1,7 +1,11 @@
 #ifndef hModel
 #define hModel
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "vk.buffers.h"
+#include "Primitives.h"
 
 namespace vk {
     struct Mesh {

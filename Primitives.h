@@ -1,5 +1,9 @@
+#pragma once
+
 #ifndef hPrimitives
 #define hPrimitives
+
+#include <glm/glm.hpp>
 
 struct Vertex {
     glm::vec4 position;

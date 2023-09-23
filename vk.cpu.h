@@ -1,7 +1,10 @@
-#ifndef hVulkanCPU
-#define hVulkanCPU
+#pragma once
+
+#ifndef hCPU
+#define hCPU
 
 #include "vk.swapchain.h"
+//TODO: Centralize power.
 
 namespace vk {
     struct Fence {
@@ -229,6 +232,4 @@ namespace vk {
         }
     };
 }
-
-
 #endif

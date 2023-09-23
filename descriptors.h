@@ -1,5 +1,4 @@
-#ifndef hDescriptors
-#define hDescriptors
+#pragma once
 
 #include <set>
 
@@ -31,9 +30,7 @@ namespace vk {
             poolInfo.pPoolSizes = &poolSizes;
             poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
-            if (vkCreateDescriptorPool(GPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create descriptor pool!");
-            }
+            VK_CHECK_RESULT(vkCreateDescriptorPool(GPU::device, &poolInfo, nullptr, &Pool));
 
         }
         void createDescriptorSetLayout(VkDescriptorType& type, VkShaderStageFlags& flag, uint32_t bindingCount) {
@@ -65,9 +62,8 @@ namespace vk {
             allocInfo.pSetLayouts = layouts.data();
 
             Sets.resize(MAX_FRAMES_IN_FLIGHT);
-            if (vkAllocateDescriptorSets(GPU::device, &allocInfo, Sets.data()) != VK_SUCCESS) {
-                throw std::runtime_error("failed to allocate descriptor sets!");
-            }
+
+            VK_CHECK_RESULT(vkAllocateDescriptorSets(GPU::device, &allocInfo, Sets.data()));
         }
     };
 
@@ -134,9 +130,7 @@ namespace vk {
             layoutInfo.bindingCount = size;
             layoutInfo.pBindings = layoutBindings.data();
 
-            if (vkCreateDescriptorSetLayout(GPU::device, &layoutInfo, nullptr, &layout) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create descriptor set layout!");
-            }
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(GPU::device, &layoutInfo, nullptr, &layout));
         }
         
     };
@@ -167,9 +161,7 @@ namespace vk {
             poolInfo.pPoolSizes = poolSizes.data();
             poolInfo.maxSets = size; //if MAX_FRAMES_IN_FLIGHT == 1, then there will be only 1 set.
             // ^number of sets that can be allocated by vkAllocateDescriptorSets()
-            if (vkCreateDescriptorPool(GPU::device, &poolInfo, nullptr, &Pool) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create descriptor pool!");
-            }
+            VK_CHECK_RESULT(vkCreateDescriptorPool(GPU::device, &poolInfo, nullptr, &Pool));
         }
         void allocateDescriptorSets(std::vector<DescriptorSet>& DescriptorSets, uint32_t size) {
             std::vector<VkDescriptorSetLayout> layouts(size, DescriptorSets.data()->layout);
@@ -180,9 +172,7 @@ namespace vk {
             allocInfo.descriptorSetCount = size;
             allocInfo.pSetLayouts = layouts.data();
 
-            if (vkAllocateDescriptorSets(GPU::device, &allocInfo, &DescriptorSets.data()->set) != VK_SUCCESS) {
-                throw std::runtime_error("failed to allocate descriptor sets!");
-            }
+            VK_CHECK_RESULT(vkAllocateDescriptorSets(GPU::device, &allocInfo, &DescriptorSets.data()->set));
         }
         void writeDescriptorSets(std::vector<DescriptorSet>& DescriptorSets, uint32_t size) {
             for (int i = 0; i < size; i++) {
@@ -191,9 +181,3 @@ namespace vk {
         }
     };
 }
-
-
-
-
-
-#endif

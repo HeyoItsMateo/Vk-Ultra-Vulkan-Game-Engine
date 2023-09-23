@@ -1,6 +1,8 @@
 #ifndef hSSBO
 #define hSSBO
 
+#include "descriptors.h"
+
 #include <random>
 
 struct pop {

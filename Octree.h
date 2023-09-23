@@ -1,6 +1,8 @@
 #ifndef hOctree
 #define hOctree
 
+#include "Model.h"
+
 #include <glm/gtx/string_cast.hpp>
 #include <glm/gtx/hash.hpp>
 #include <bitset>
@@ -8,7 +10,7 @@
 #include <map>
 #include <set>
 
-std::unordered_map<glm::vec4, std::bitset<8>> octreeMap = {
+inline std::unordered_map<glm::vec4, std::bitset<8>> octreeMap = {
             { { 1, 1, 1, 1}, 0b10000000 },
             { {-1, 1, 1, 1}, 0b01000000 },
             { {-1,-1, 1, 1}, 0b00100000 },
@@ -281,7 +283,7 @@ struct biOctree {
     }
 };
 
-std::unordered_map<glm::vec4, std::bitset<4>> quadtreeMap = {
+inline std::unordered_map<glm::vec4, std::bitset<4>> quadtreeMap = {
     { { 1, 1, 0, 1},{0b0001} },
     { {-1, 1, 0, 1},{0b0010} },
     { { 1,-1, 0, 1},{0b0100} },

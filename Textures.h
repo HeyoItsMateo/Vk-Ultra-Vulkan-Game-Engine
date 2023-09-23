@@ -99,7 +99,7 @@ namespace vk {
         {
             format = VK_FORMAT_R8G8B8A8_UNORM;
             usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-            extent = { 30, 20 };
+            extent = { 3000, 2000 };
 
             createImage(*this, VK_SAMPLE_COUNT_1_BIT);
 

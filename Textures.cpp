@@ -4,6 +4,7 @@
 #include <stb_image.h>
 
 namespace vk {
+    /*------------------------------------------*/
     Texture::Texture(const char* filename) : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
     {
         format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -28,6 +29,7 @@ namespace vk {
         createImageView(*this, mipLevels);
         writeDescriptorSets();
     }
+    /* Private */
     void Texture::transitionImageLayout(VkImageLayout oldLayout, VkImageLayout newLayout)
     {
         VkImageMemoryBarrier barrier = createMemoryBarrier(Image, oldLayout, newLayout, mipLevels);
@@ -178,7 +180,6 @@ namespace vk {
         vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
     }
     /*------------------------------------------*/
-
     CombinedImageSampler::CombinedImageSampler(const char* filename)
         : Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
     {
@@ -210,6 +211,7 @@ namespace vk {
     {
         vkDestroySampler(GPU::device, Sampler, nullptr);
     }
+    /* Private */
     void CombinedImageSampler::transitionImageLayout(VkImageLayout oldLayout, VkImageLayout newLayout)
     {
         VkImageMemoryBarrier barrier = createMemoryBarrier(Image, oldLayout, newLayout, mipLevels);
@@ -364,4 +366,5 @@ namespace vk {
         }
         vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
     }
+    /*------------------------------------------*/
 }

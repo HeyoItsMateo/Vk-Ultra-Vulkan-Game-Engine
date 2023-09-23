@@ -1,6 +1,8 @@
 #ifndef hScene
 #define hScene
 
+#include "Model.h"
+
 namespace vk {
 	struct Scene {
         Scene(Pipeline& renderPipeline, Mesh& gameObject)

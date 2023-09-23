@@ -2,6 +2,7 @@
 #define hEngine
 
 #include "vk.graphics.h"
+#include "vk.compute.h"
 #include "Scene.h"
 
 #include "UBO.h"
@@ -91,7 +92,7 @@ namespace vk {
 
             VK_CHECK_RESULT(vkBeginCommandBuffer(computeCommands[currentFrame], &beginInfo));
             for (int i = 0; i < size; i++) {
-                compute[i].run();
+                compute[i].dispatch();
             }
             VK_CHECK_RESULT(vkEndCommandBuffer(computeCommands[currentFrame]));
         }

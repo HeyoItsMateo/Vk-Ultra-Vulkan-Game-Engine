@@ -1,5 +1,4 @@
-#ifndef hBuffers
-#define hBuffers
+#pragma once
 
 #include "vk.cpu.h"
 
@@ -177,4 +176,3 @@ namespace vk {
         }
     };
 }
-#endif

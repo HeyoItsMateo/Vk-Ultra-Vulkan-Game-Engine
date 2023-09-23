@@ -111,9 +111,7 @@ namespace vk {
 
         for (size_t i = 0; i < swapChainImages.size(); i++) {
             viewInfo.image = swapChainImages[i];
-            if (vkCreateImageView(GPU::device, &viewInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create image view!");
-            }
+            VK_CHECK_RESULT(vkCreateImageView(GPU::device, &viewInfo, nullptr, &swapChainImageViews[i]));
         }
     }
     void SwapChain::createFramebuffers()
@@ -136,9 +134,7 @@ namespace vk {
             framebufferInfo.height = Extent.height;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create framebuffer!");
-            }
+            VK_CHECK_RESULT(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]));
         }
     }
     void SwapChain::createRenderPass()
@@ -181,9 +177,7 @@ namespace vk {
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create render pass!");
-        }
+        VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
     }
 
     void SwapChain::cleanupSwapChain()

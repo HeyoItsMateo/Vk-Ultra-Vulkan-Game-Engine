@@ -79,7 +79,7 @@ namespace vk {
             { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-            VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
+            vkBeginCommandBuffer(cmdBuffer, &beginInfo);
         }
         void endCommand() {
             vkEndCommandBuffer(cmdBuffer);
@@ -89,7 +89,7 @@ namespace vk {
             submitInfo.commandBufferCount = 1; //TODO: find out how to allocate two or more command buffers
             submitInfo.pCommandBuffers = &cmdBuffer;
 
-            vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, fence);
+            VK_CHECK_RESULT(vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, fence));
             signal();
 
             vkFreeCommandBuffers(GPU::device, pool, 1, &cmdBuffer);
@@ -141,10 +141,7 @@ namespace vk {
             std::for_each(std::execution::par, semaphores.begin(), semaphores.end(),
                 [&](VkSemaphore& semaphore)
                 {
-                    if (vkCreateSemaphore(GPU::device, &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS)
-                    {
-                        throw std::runtime_error("failed to create semaphore for a frame!");
-                    }
+                    VK_CHECK_RESULT(vkCreateSemaphore(GPU::device, &semaphoreInfo, nullptr, &semaphore));
                 });
         }
         void create_Fences(std::vector<VkFence>& fences) {
@@ -156,10 +153,7 @@ namespace vk {
                 fences.begin(), fences.end(),
                 [&](VkFence& fence)
                 {
-                    if (vkCreateFence(GPU::device, &fenceInfo, nullptr, &fence) != VK_SUCCESS)
-                    {
-                        throw std::runtime_error("failed to create fence for a frame!");
-                    }
+                    VK_CHECK_RESULT(vkCreateFence(GPU::device, &fenceInfo, nullptr, &fence));
                 });
         }
 

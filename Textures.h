@@ -9,7 +9,9 @@
 namespace vk {
     struct Sampler : Descriptor {
         VkSampler sampler;
-        Sampler(uint32_t mipLevels = 1, VkShaderStageFlagBits shaderFlags = VK_SHADER_STAGE_FRAGMENT_BIT) : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLER, shaderFlags) {
+        Sampler(uint32_t mipLevels = 1, VkShaderStageFlagBits shaderFlags = VK_SHADER_STAGE_FRAGMENT_BIT)
+            : Descriptor(VK_DESCRIPTOR_TYPE_SAMPLER, shaderFlags)
+        {
             VkPhysicalDeviceProperties properties{};
             vkGetPhysicalDeviceProperties(GPU::physicalDevice, &properties);
 
@@ -32,9 +34,7 @@ namespace vk {
             samplerInfo.maxLod = mipLevels;
             samplerInfo.mipLodBias = 0.0f; // Optional
 
-            if (vkCreateSampler(GPU::device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create texture sampler!");
-            }
+            VK_CHECK_RESULT(vkCreateSampler(GPU::device, &samplerInfo, nullptr, &sampler));
 
             writeDescriptorSets();
         }
@@ -54,12 +54,10 @@ namespace vk {
             allocImage.sampler = sampler;
             std::vector<VkDescriptorImageInfo> imageInfo(bindingCount, allocImage);
 
-            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            for (uint32_t i = 0; i < bindingCount; i++) {
                 descriptorWrites[i].dstSet = Sets[i];
-                for (uint32_t j = 0; j < bindingCount; j++) {
-                    descriptorWrites[j].dstBinding = j;
-                    descriptorWrites[j].pImageInfo = &imageInfo[j];
-                }
+                descriptorWrites[i].dstBinding = i;
+                descriptorWrites[i].pImageInfo = &imageInfo[i];
             }
             vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
         }
@@ -93,7 +91,7 @@ namespace vk {
         void writeDescriptorSets(uint32_t bindingCount = 1) override;
     };
     /*------------------------------------------*/
-    struct ComputeImage : Image, Command, Descriptor {
+    struct ComputeImage : Image, CPU_<1>, Descriptor {
         ComputeImage(VkShaderStageFlagBits stageFlags = VK_SHADER_STAGE_VERTEX_BIT)
             : Descriptor(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT | stageFlags)
         {
@@ -116,18 +114,18 @@ namespace vk {
             VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
             VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-            beginCommand();
-
+            beginCommand(*cmdBuffers);
             vkCmdPipelineBarrier(
-                Command::cmdBuffer,
+                *cmdBuffers,
                 srcStageMask, dstStageMask,
                 0,
                 0, nullptr,
                 0, nullptr,
                 1, &memoryBarrier
             );
+            endCommand(*cmdBuffers);
 
-            endCommand();
+            submitCommands(cmdBuffers, 1);
         }
         void writeDescriptorSets(uint32_t bindingCount = 1) override {
             VkWriteDescriptorSet allocWrite
@@ -135,7 +133,7 @@ namespace vk {
             allocWrite.dstArrayElement = 0;
             allocWrite.descriptorCount = 1;
             allocWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-            std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount, allocWrite);
+            std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT, allocWrite);
 
             VkDescriptorImageInfo allocImage{};
             allocImage.imageLayout = VK_IMAGE_LAYOUT_GENERAL;

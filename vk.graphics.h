@@ -10,6 +10,7 @@
 #include "Primitives.h"
 
 namespace vk {    
+    /*
     template<typename primitiveType, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL>
     struct GraphicsPPL_ : Pipeline {
         template<uint32_t nShaders, uint32_t setCount>
@@ -107,7 +108,7 @@ namespace vk {
             VK_CHECK_RESULT(vkCreateGraphicsPipelines(GPU::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
         }
     };
-
+    */
     template<typename primitiveType, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL>
     struct GraphicsPPL : Pipeline {
         template<uint32_t size>
@@ -174,6 +175,14 @@ namespace vk {
         }
     };
     
+    template<typename primitiveType, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL>
+    struct GraphicsPPL_ : Pipeline {
+        template<uint32_t size>
+        GraphicsPPL_(Shader_(&shaders)[size], std::vector<VkDescriptorSet> const& descSets, std::vector<VkDescriptorSetLayout>& SetLayout);
+    private:
+        std::vector<VkPipelineShaderStageCreateInfo> stageInfo(Shader_* shaders, uint32_t size);
+        void vkCreatePipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages);
+    };
 }
 
 #include "vk.graphics.ipp"

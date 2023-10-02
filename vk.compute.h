@@ -8,10 +8,14 @@
 #include "vk.shader.h"
 
 namespace vk {
+    struct Workgroup {
+        uint32_t x, y, z;
+    };
     struct ComputePPL : Pipeline {
-        const uint32_t PARTICLE_COUNT = 1000;
-        ComputePPL(Shader const& computeShader, std::vector<VkDescriptorSet>& descSets, std::vector<VkDescriptorSetLayout>& setLayouts)
+        Workgroup workgroup;
+        ComputePPL(Shader const& computeShader, std::vector<VkDescriptorSet>& descSets, std::vector<VkDescriptorSetLayout>& setLayouts, Workgroup workgroups = {10, 10, 10})
         {
+            workgroup = workgroups;
             bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
             sets = descSets;
             vkLoadSetLayout(setLayouts, layout);
@@ -22,7 +26,7 @@ namespace vk {
 
             vkCmdBindPipeline(commandBuffer, bindPoint, pipeline);
             vkCmdBindDescriptorSets(commandBuffer, bindPoint, layout, 0, static_cast<uint32_t>(sets.size()), sets.data(), 0, nullptr);
-            vkCmdDispatch(commandBuffer, PARTICLE_COUNT / (100), PARTICLE_COUNT / (100), PARTICLE_COUNT / (100));
+            vkCmdDispatch(commandBuffer, workgroup.x, workgroup.y, workgroup.z);
         }
     private:
         void vkCreatePipeline(Shader const& computeShader) {

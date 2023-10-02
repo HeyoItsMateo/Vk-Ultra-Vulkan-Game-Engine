@@ -86,9 +86,7 @@ namespace vk {
         createInfo.presentMode = presentMode;
         createInfo.clipped = VK_TRUE;
 
-        if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChainKHR) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create swap chain!");
-        }
+        VK_CHECK_RESULT(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChainKHR));
 
         vkGetSwapchainImagesKHR(device, swapChainKHR, &imageCount, nullptr);
         swapChainImages.resize(imageCount);

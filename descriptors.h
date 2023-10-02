@@ -7,14 +7,17 @@ namespace vk {
         VkDescriptorSetLayout SetLayout;
         std::vector<VkDescriptorSet> Sets;
         Descriptor(VkDescriptorType type, VkShaderStageFlags flag, uint32_t bindingCount = 1) {
-            
             createDescriptorPool(type, bindingCount);
             createDescriptorSetLayout(type, flag, bindingCount);
             allocateDescriptorSets();
         }
         ~Descriptor() {
-            vkDestroyDescriptorPool(GPU::device, Pool, nullptr);
-            vkDestroyDescriptorSetLayout(GPU::device, SetLayout, nullptr);
+            if (Pool != VK_NULL_HANDLE) {
+                vkDestroyDescriptorPool(GPU::device, Pool, nullptr);
+            }
+            if (SetLayout != VK_NULL_HANDLE) {
+                vkDestroyDescriptorSetLayout(GPU::device, SetLayout, nullptr);
+            }
         }
     protected:
         VkDescriptorPool Pool;
@@ -31,7 +34,6 @@ namespace vk {
             poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
             VK_CHECK_RESULT(vkCreateDescriptorPool(GPU::device, &poolInfo, nullptr, &Pool));
-
         }
         void createDescriptorSetLayout(VkDescriptorType& type, VkShaderStageFlags& flag, uint32_t bindingCount) {
             std::vector<VkDescriptorSetLayoutBinding> layoutBindings(bindingCount);
@@ -48,9 +50,7 @@ namespace vk {
             layoutInfo.bindingCount = bindingCount;
             layoutInfo.pBindings = layoutBindings.data();
 
-            if (vkCreateDescriptorSetLayout(GPU::device, &layoutInfo, nullptr, &SetLayout) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create descriptor set layout!");
-            }
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(GPU::device, &layoutInfo, nullptr, &SetLayout));
         }
         void allocateDescriptorSets() {
             std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);

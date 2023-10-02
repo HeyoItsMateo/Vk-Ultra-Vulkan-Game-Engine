@@ -20,25 +20,63 @@ namespace vk {
             vkDestroyFence(GPU::device, fence, nullptr);
         }
     public:
-        void signal() {
+        static void signal(VkFence& fence) {
             vkWaitForFences(GPU::device, 1, &fence, VK_TRUE, UINT64_MAX);
             vkResetFences(GPU::device, 1, &fence);
         }
     };
+    template<int bufferCount = MAX_FRAMES_IN_FLIGHT>
+    struct CPU_ : Fence {
+        CPU_() {
+            createCommandPool(pool);
+            allocateCommandBuffers(pool, cmdBuffers, bufferCount);
+        }
+        ~CPU_() {
+            vkFreeCommandBuffers(GPU::device, pool, bufferCount, cmdBuffers);
+            vkDestroyCommandPool(GPU::device, pool, nullptr);
+        }
+    public:
+        VkCommandPool pool;
+        VkCommandBuffer cmdBuffers[bufferCount];
+        void submitCommands(VkCommandBuffer* cmdBuffers, uint32_t bufferCount) {
+            VkSubmitInfo submitInfo
+            { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+            submitInfo.commandBufferCount = bufferCount;
+            submitInfo.pCommandBuffers = cmdBuffers;
 
-    struct CPU_: Fence {
-        //template<int size>
-        //static void submitCommands(VkCommandBuffer(&pCommands)[size]) {
-        //    VkSubmitInfo submitInfo
-        //    { VK_STRUCTURE_TYPE_SUBMIT_INFO };
-        //    submitInfo.commandBufferCount = size; //TODO: find out how to allocate two or more command buffers
-        //    submitInfo.pCommandBuffers = pCommands;
+            VK_CHECK_RESULT(vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, fence));
+            signal(fence);
 
-        //    vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, fence);
-        //    signal();
+            vkResetCommandBuffer(*cmdBuffers, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+        }
+    protected:
+        static void beginCommand(VkCommandBuffer& cmdBuffer) {
+            VkCommandBufferBeginInfo beginInfo
+            { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
+        }
+        static void endCommand(VkCommandBuffer& cmdBuffer) {
+            vkEndCommandBuffer(cmdBuffer);
+        }
+    private:
+        static void createCommandPool(VkCommandPool& pool) {
+            VkCommandPoolCreateInfo createInfo
+            { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+            createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            createInfo.queueFamilyIndex = GPU::graphicsFamily.value();
 
-        //    //vkFreeCommandBuffers(GPU::device, pool, 1, pCommands);
-        //}
+            VK_CHECK_RESULT(vkCreateCommandPool(GPU::device, &createInfo, nullptr, &pool));
+        }
+        static void allocateCommandBuffers(VkCommandPool& pool, VkCommandBuffer* cmdBuffers, uint32_t bufferCount) {
+            VkCommandBufferAllocateInfo allocInfo
+            { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocInfo.commandPool = pool;
+            allocInfo.commandBufferCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+            VK_CHECK_RESULT(vkAllocateCommandBuffers(GPU::device, &allocInfo, cmdBuffers));
+        }
     };
 
     struct CPU {
@@ -49,13 +87,12 @@ namespace vk {
             createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             createInfo.queueFamilyIndex = GPU::graphicsFamily.value();
 
-            if (vkCreateCommandPool(GPU::device, &createInfo, nullptr, &pool) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create graphics command pool!");
-            }
+            VK_CHECK_RESULT(vkCreateCommandPool(GPU::device, &createInfo, nullptr, &pool));
         }
         ~CPU() {
             vkDestroyCommandPool(GPU::device, pool, nullptr);
         }
+
     };
 
     struct Command : CPU, Fence {
@@ -93,7 +130,7 @@ namespace vk {
             submitInfo.pCommandBuffers = &cmdBuffer;
 
             VK_CHECK_RESULT(vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, fence));
-            signal();
+            signal(fence);
 
             vkFreeCommandBuffers(GPU::device, pool, 1, &cmdBuffer);
         }
@@ -102,8 +139,8 @@ namespace vk {
     };
 
     struct EngineSync {
-        std::vector<VkSemaphore> imageAvailableSemaphores;
-        std::vector<VkSemaphore> renderFinishedSemaphores;
+        std::vector<VkSemaphore> imageAvailable;
+        std::vector<VkSemaphore> imageCompleted;
         std::vector<VkFence> inFlightFences;
 
         std::vector<VkSemaphore> computeFinishedSemaphores;
@@ -112,16 +149,16 @@ namespace vk {
         EngineSync() {
             init_Containers();
 
-            std::jthread tG0([this] { create_Semaphores(imageAvailableSemaphores); });
-            std::jthread tG1([this] { create_Semaphores(renderFinishedSemaphores); });
+            std::jthread tG0([this] { create_Semaphores(imageAvailable); });
+            std::jthread tG1([this] { create_Semaphores(imageCompleted); });
             std::jthread tG2([this] { create_Fences(inFlightFences); });
 
             std::jthread tC0([this] { create_Semaphores(computeFinishedSemaphores); });
             std::jthread tC1([this] { create_Fences(computeInFlightFences); });
         }
         ~EngineSync() {
-            std::jthread tG0([this] { destroy_Semaphores(renderFinishedSemaphores); });
-            std::jthread tG1([this] { destroy_Semaphores(imageAvailableSemaphores); });
+            std::jthread tG0([this] { destroy_Semaphores(imageCompleted); });
+            std::jthread tG1([this] { destroy_Semaphores(imageAvailable); });
             std::jthread tG2([this] { destroy_Fences(inFlightFences); });
 
             std::jthread tC0([this] { destroy_Semaphores(computeFinishedSemaphores); });
@@ -129,8 +166,8 @@ namespace vk {
         }
     private:
         void init_Containers() {
-            std::jthread tG0([&] { imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT); });
-            std::jthread tG1([&] { renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); });
+            std::jthread tG0([&] { imageAvailable.resize(MAX_FRAMES_IN_FLIGHT); });
+            std::jthread tG1([&] { imageCompleted.resize(MAX_FRAMES_IN_FLIGHT); });
             std::jthread tG2([&] { inFlightFences.resize(MAX_FRAMES_IN_FLIGHT); });
 
             std::jthread tC0([&] { computeFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); });
@@ -203,7 +240,7 @@ namespace vk {
             VK_CHECK_RESULT(vkQueueSubmit(GPU::computeQueue, 1, &submitInfo, computeInFlightFences[SwapChain::currentFrame]));
         }
         void vkSubmitGraphicsQueue() {
-            VkSemaphore waitSemaphores[] = { computeFinishedSemaphores[SwapChain::currentFrame], imageAvailableSemaphores[SwapChain::currentFrame] };
+            VkSemaphore waitSemaphores[] = { computeFinishedSemaphores[SwapChain::currentFrame], imageAvailable[SwapChain::currentFrame] };
             VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
             VkSubmitInfo submitInfo
@@ -214,7 +251,7 @@ namespace vk {
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &renderCommands[SwapChain::currentFrame];
             submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = &renderFinishedSemaphores[SwapChain::currentFrame];
+            submitInfo.pSignalSemaphores = &imageCompleted[SwapChain::currentFrame];
 
             VK_CHECK_RESULT(vkQueueSubmit(GPU::graphicsQueue, 1, &submitInfo, inFlightFences[SwapChain::currentFrame]));
         }

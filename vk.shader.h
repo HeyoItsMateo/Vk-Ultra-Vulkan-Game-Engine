@@ -13,6 +13,15 @@ namespace vk {
         static std::vector<char> readFile(const std::string& filename);
         static void createModule(const std::vector<char>& code, VkShaderModule& shaderModule);
     };
+    struct Shader_ {
+        VkShaderModule shaderModule;
+        VkShaderStageFlagBits shaderStage;
+        Shader_(std::string const& filename, VkShaderStageFlagBits stage);
+        ~Shader_();
+    private:
+        static std::vector<char> readFile(const std::string& filename);
+        static void createModule(const std::vector<char>& code, VkShaderModule& shaderModule);
+    };
 }
 
 #ifndef LOG_FILE

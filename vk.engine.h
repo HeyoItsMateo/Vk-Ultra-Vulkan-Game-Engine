@@ -1,5 +1,9 @@
+#pragma once
 #ifndef hEngine
 #define hEngine
+
+#include "vk.swapchain.h"
+#include "vk.cpu.h"
 
 #include "vk.graphics.h"
 #include "vk.compute.h"
@@ -36,12 +40,12 @@ namespace vk {
     }
     
     struct Engine : SwapChain, EngineCPU {
+        uint32_t imageIndex = 0;
         template <int sceneCount, int computeCount>
         void run(Scene(&scene)[sceneCount], ComputePPL(&compute)[computeCount], Pipeline& particlePPL, SSBO& ssbo) {
             std::jthread t1(&Engine::deltaTime, this);
 
-            uint32_t imageIndex;
-            vkAquireImage(imageIndex);
+            vkAquireImage(imageAvailable[currentFrame], imageIndex);
             // Compute Queue
             vkComputeSync();
             runCompute(compute);
@@ -53,7 +57,7 @@ namespace vk {
             vkSubmitGraphicsQueue();
 
             /* Present Image */
-            vkPresentImage(imageIndex);
+            vkPresentImage(imageCompleted[currentFrame], imageIndex);
 
             currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         }
@@ -74,16 +78,17 @@ namespace vk {
         }
 
     private:
-        void vkAquireImage(uint32_t& imageIndex) {
-            VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        void vkAquireImage(VkSemaphore& waitSemaphore, uint32_t& imageIndex) {
+            VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, waitSemaphore, VK_NULL_HANDLE, &imageIndex);
 
             if (result == VK_ERROR_OUT_OF_DATE_KHR) {
                 recreateSwapChain();
                 return;
             }
-            else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-                throw std::runtime_error("failed to acquire swap chain image!");
+            else if (result != VK_SUBOPTIMAL_KHR && result != VK_SUCCESS) {
+                VK_CHECK_RESULT(result);
             }
+            
         }
         template <int size>
         void runCompute(ComputePPL(&compute)[size]) {
@@ -142,23 +147,28 @@ namespace vk {
         }
 
         
-        void vkPresentImage(uint32_t& imageIndex) {
+        void vkPresentImage(VkSemaphore& waitSemaphore, uint32_t& imageIndex) {
             VkPresentInfoKHR presentInfo
             { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
-            presentInfo.waitSemaphoreCount = 1;
-            presentInfo.pWaitSemaphores = &renderFinishedSemaphores[currentFrame];
+            presentInfo.pNext = NULL;
             presentInfo.swapchainCount = 1;
             presentInfo.pSwapchains = &swapChainKHR;
             presentInfo.pImageIndices = &imageIndex;
+
+            if (waitSemaphore != VK_NULL_HANDLE) {
+                presentInfo.pWaitSemaphores = &waitSemaphore;
+                presentInfo.waitSemaphoreCount = 1;
+            }
 
             VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
             if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || Window::framebufferResized) {
                 Window::framebufferResized = false;
                 recreateSwapChain();
+                return;
             }
-            else if (result != VK_SUCCESS) {
-                throw std::runtime_error("failed to present swap chain image!");
+            else {
+                VK_CHECK_RESULT(result);
             }
         }
 

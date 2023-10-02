@@ -69,6 +69,8 @@ namespace vk {
         }
 
         VkPhysicalDeviceFeatures deviceFeatures{};
+        deviceFeatures.fillModeNonSolid = VK_TRUE;
+        deviceFeatures.shaderFloat64 = VK_TRUE;
         deviceFeatures.samplerAnisotropy = VK_TRUE;
         deviceFeatures.sampleRateShading = VK_TRUE; // enable sample shading feature for the device
 
@@ -88,9 +90,7 @@ namespace vk {
             createInfo.enabledLayerCount = 0;
         }
 
-        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create logical device!");
-        }
+        VK_CHECK_RESULT(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device));
 
         vkGetDeviceQueue(device, graphicsFamily.value(), 0, &graphicsQueue);
         vkGetDeviceQueue(device, graphicsFamily.value(), 0, &computeQueue);
@@ -111,7 +111,7 @@ namespace vk {
 
         VkPhysicalDeviceFeatures supportedFeatures;
         vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-        return supportedFeatures.shaderFloat64 && queueFamilySupported && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+        return queueFamilySupported && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
     }
     bool GPU::findQueueFamilies(VkPhysicalDevice device)
     {
@@ -174,7 +174,6 @@ namespace vk {
             vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, presentModes.data());
         }
     }
-
     void GPU::getSampleCount()
     {
         VkPhysicalDeviceProperties physicalDeviceProperties;

@@ -163,7 +163,7 @@ namespace vk {
         allocWrite.dstArrayElement = 0;
         allocWrite.descriptorCount = 1;
         allocWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount, allocWrite);
+        std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT, allocWrite);
 
         VkDescriptorImageInfo allocImage{};
         allocImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -176,8 +176,8 @@ namespace vk {
                 descriptorWrites[j].dstBinding = j;
                 descriptorWrites[j].pImageInfo = &imageInfo[j];
             }
+            vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
         }
-        vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
     }
     /*------------------------------------------*/
     CombinedImageSampler::CombinedImageSampler(const char* filename)
@@ -349,7 +349,7 @@ namespace vk {
         allocWrite.dstArrayElement = 0;
         allocWrite.descriptorCount = 1;
         allocWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        std::vector<VkWriteDescriptorSet> descriptorWrites(bindingCount, allocWrite);
+        std::vector<VkWriteDescriptorSet> descriptorWrites(MAX_FRAMES_IN_FLIGHT, allocWrite);
 
         VkDescriptorImageInfo allocImage{};
         allocImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -358,13 +358,15 @@ namespace vk {
         std::vector<VkDescriptorImageInfo> imageInfo(bindingCount, allocImage);
 
         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            descriptorWrites[i].dstSet = Sets[i];
+            
             for (uint32_t j = 0; j < bindingCount; j++) {
+                descriptorWrites[j].dstSet = Sets[i];
                 descriptorWrites[j].dstBinding = j;
                 descriptorWrites[j].pImageInfo = &imageInfo[j];
             }
+            vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
         }
-        vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
+        
     }
     /*------------------------------------------*/
 }

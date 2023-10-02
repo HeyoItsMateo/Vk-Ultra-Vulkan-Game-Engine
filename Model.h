@@ -149,7 +149,7 @@ namespace vk {
                     vertex.position = { i * resolution.x, 0, j * resolution.y, 1 };
                     vertex.normal = { 0, 0, 1, 1 };
                     vertex.color = { 0,1,0,1 };
-                    vertex.texCoord = { i,j };
+                    vertex.texCoord = { i, j };
                     vertices.push_back(vertex);
                 }
             }

@@ -62,7 +62,7 @@ struct Particle {
         VkVertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;
         bindingDescription.stride = sizeof(Particle);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
         return bindingDescription;
     }

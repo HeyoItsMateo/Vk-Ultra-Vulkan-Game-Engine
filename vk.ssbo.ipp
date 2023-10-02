@@ -1,3 +1,4 @@
+#pragma once
 namespace vk {
     template<typename T>
     inline SSBO::SSBO(T& content, VkShaderStageFlags flags, uint32_t bindingCount)

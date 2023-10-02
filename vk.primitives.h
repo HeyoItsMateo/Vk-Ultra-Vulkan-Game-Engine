@@ -102,7 +102,7 @@ struct Primitive {
     glm::vec4 normal;
     glm::vec4 color;
     glm::vec2 texCoord;
-    
+
     static VkVertexInputBindingDescription bindings() {
         VkVertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;

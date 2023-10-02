@@ -5,7 +5,7 @@
 #include <vector>
 #include <random>
 #include <glm/glm.hpp>
-#include "Primitives.h"
+#include "vk.primitives.h"
 
 struct pop {
     std::vector<Particle> particles;
@@ -45,6 +45,6 @@ namespace vk {
     };
 }
 
-#include "SSBO.ipp"
+#include "vk.ssbo.ipp"
 
 #endif

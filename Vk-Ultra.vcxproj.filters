@@ -52,22 +52,25 @@
     <Filter Include="Header Files\Vulkan Engine\Utilities">
       <UniqueIdentifier>{15f825e9-e837-4e82-811e-0e1345af6318}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Descriptors">
-      <UniqueIdentifier>{67b7fe29-fd72-4b28-bb4d-b283ecbb66f9}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\Vulkan\Base">
       <UniqueIdentifier>{fef743bc-a699-45da-ba93-abe938d2a553}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Vulkan\Rendering">
       <UniqueIdentifier>{6382b0f2-670e-4594-b4fd-59e52797fe1e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Vulkan Engine\Descriptors">
+      <UniqueIdentifier>{67b7fe29-fd72-4b28-bb4d-b283ecbb66f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Vulkan\Utilities">
+      <UniqueIdentifier>{0b861e1b-fa49-447b-940d-e81e626f2ab8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Vulkan\Descriptors">
+      <UniqueIdentifier>{2f463458-b94e-4e31-8c87-57a9041b4d2f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Textures.cpp">
-      <Filter>Source Files\Game Objects</Filter>
     </ClCompile>
     <ClCompile Include="vk.shader.cpp">
       <Filter>Source Files\Vulkan\Pipeline</Filter>
@@ -83,6 +86,24 @@
     </ClCompile>
     <ClCompile Include="vk.image.cpp">
       <Filter>Source Files\Vulkan\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.compute.cpp">
+      <Filter>Source Files\Vulkan\Pipeline</Filter>
+    </ClCompile>
+    <ClCompile Include="Model.cpp">
+      <Filter>Source Files\Game Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.pipeline.cpp">
+      <Filter>Source Files\Vulkan\Pipeline</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.textures.cpp">
+      <Filter>Source Files\Vulkan\Descriptors</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Source Files\Game Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="vk.buffers.cpp">
+      <Filter>Source Files\Vulkan\Utilities</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -121,12 +142,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="SSBO.h">
-      <Filter>Header Files\Descriptors</Filter>
-    </ClInclude>
-    <ClInclude Include="UBO.h">
-      <Filter>Header Files\Descriptors</Filter>
-    </ClInclude>
     <ClInclude Include="Camera.h">
       <Filter>Header Files\Game Objects</Filter>
     </ClInclude>
@@ -135,9 +150,6 @@
     </ClInclude>
     <ClInclude Include="Octree.h">
       <Filter>Header Files\Game Objects</Filter>
-    </ClInclude>
-    <ClInclude Include="helperFunc.h">
-      <Filter>Header Files\Descriptors</Filter>
     </ClInclude>
     <ClInclude Include="Scene.h">
       <Filter>Header Files\Game Objects</Filter>
@@ -169,23 +181,35 @@
     <ClInclude Include="vk.cpu.h">
       <Filter>Header Files\Vulkan Engine\Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="descriptors.h">
-      <Filter>Header Files\Vulkan Engine\Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="Textures.h">
-      <Filter>Header Files\Descriptors</Filter>
-    </ClInclude>
     <ClInclude Include="vk.compute.h">
       <Filter>Header Files\Vulkan Engine\Pipelines</Filter>
     </ClInclude>
     <ClInclude Include="vk.pipeline.h">
       <Filter>Header Files\Vulkan Engine\Pipelines</Filter>
     </ClInclude>
-    <ClInclude Include="Primitives.h">
+    <ClInclude Include="vk.primitives.h">
       <Filter>Header Files\Vulkan Engine\Utilities</Filter>
     </ClInclude>
     <ClInclude Include="vk.graphics.ipp">
       <Filter>Source Files\Vulkan\Pipeline</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.ssbo.h">
+      <Filter>Header Files\Vulkan Engine\Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Vk-Ultra Library\Vk-Ultra\vk.ssbo.ipp">
+      <Filter>Source Files\Vulkan\Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="descriptors.h">
+      <Filter>Header Files\Vulkan Engine\Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.textures.h">
+      <Filter>Header Files\Vulkan Engine\Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.ubo.h">
+      <Filter>Header Files\Vulkan Engine\Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.ubo.ipp">
+      <Filter>Source Files\Vulkan\Descriptors</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

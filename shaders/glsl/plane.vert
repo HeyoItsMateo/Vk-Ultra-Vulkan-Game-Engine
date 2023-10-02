@@ -27,10 +27,10 @@ layout(set = 1, binding = 0) uniform model_UBO{
 
 layout(set = 2, binding = 0) uniform sampler imageSampler;
 
-layout (set = 3, binding = 0) uniform readonly image2D heightMap;
+layout (set = 3, binding = 0, rgba8_snorm) uniform readonly image2D heightMap;
 
 void main() {
-    vec4 heightData = imageLoad(heightMap, ivec2(inPosition.xz));
+    vec4 heightData = imageLoad(heightMap, ivec2(inTexCoord));
     vec4 pos = vec4(inPosition.x, length(heightData), inPosition.z, inPosition[3]);
 
     gl_Position = ubo.cam.proj * ubo.cam.view * plane.matrix * pos;

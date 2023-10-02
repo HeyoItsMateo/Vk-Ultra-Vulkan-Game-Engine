@@ -12,9 +12,9 @@ layout(binding = 0) uniform UniformBufferObject {
     camera cam;
 } ubo;
 
-layout (set = 3, binding = 0) uniform writeonly image2D heightMap;
+layout (set = 3, binding = 0, rgba8_snorm) uniform writeonly image2D heightMap;
 
-layout (local_size_x = 10, local_size_y = 1, local_size_z = 10) in;
+layout (local_size_x = 30, local_size_y = 20, local_size_z = 1) in;
 
 // Organization and Indexing
 uvec3 nWG = gl_NumWorkGroups;
@@ -90,11 +90,11 @@ void main()
     float Height;
     for (int i = 0; i < 5; i++)
     {
-        Height += (snoise(ivec2(gl_WorkGroupID.xy) * frequency) * amplitude);
+        Height += (snoise(ivec2(gl_GlobalInvocationID.xy) * frequency) * amplitude);
         Height = (Height + 1) * 0.5;
         frequency *= 2;
         amplitude *= 0.5;
     }
     //Draw to image;
-    imageStore(heightMap, ivec2(gl_WorkGroupID.xy), vec4(Height));
+    imageStore(heightMap, ivec2(gl_GlobalInvocationID.xy), vec4(Height));
 }

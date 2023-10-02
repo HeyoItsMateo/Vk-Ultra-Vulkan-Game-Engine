@@ -9,8 +9,8 @@
 #include "vk.compute.h"
 #include "Scene.h"
 
-#include "UBO.h"
-#include "SSBO.h"
+#include "vk.ubo.h"
+#include "vk.ssbo.h"
 
 #include <chrono>
 

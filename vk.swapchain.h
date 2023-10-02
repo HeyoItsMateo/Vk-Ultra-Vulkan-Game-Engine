@@ -1,3 +1,4 @@
+#pragma once
 #ifndef hSwapChain
 #define hSwapChain
 

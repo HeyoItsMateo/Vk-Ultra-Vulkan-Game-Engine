@@ -1,3 +1,4 @@
+#pragma once
 #ifndef hGraphics
 #define hGraphics
 
@@ -7,7 +8,7 @@
 #include "vk.shader.h"
 
 #include "descriptors.h"
-#include "Primitives.h"
+#include "vk.primitives.h"
 
 namespace vk {    
     /*

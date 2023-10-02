@@ -1,5 +1,5 @@
 #include "vk.engine.h"
-#include "Textures.h"
+#include "vk.textures.h"
 #include "Octree.h"
 
 #include <algorithm>
@@ -15,13 +15,14 @@ vk::Engine app;
 vk::Uniforms uniforms;
 vk::UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 
-pop population(1000);
+pop population(100000);
 vk::SSBO ssbo(population.particles, VK_SHADER_STAGE_COMPUTE_BIT);
 
 vk::CombinedImageSampler planksImageSampler("textures/planks.png");
 
 vk::Texture planks("textures/planks.png");
 vk::Sampler sampler(planks.mipLevels);
+
 
 std::vector<triangleList> vertices = {
     {{-0.5f,  0.5f,  0.5f, 1.f}, {-0.5f,  0.5f,  0.5f, 1.f}, {1.0f, 0.0f, 0.0f, 1.f}, {0.0f, 0.0f}},
@@ -62,9 +63,6 @@ vk::Shader plankShaders[] = {
     {"vertex.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
 };
 vk::GraphicsPPL<triangleList> graphicsPPL(plankShaders, plankSet, plankLayout);
-
-
-
 
 
 vk::Plane plane({ 300, 200 }, { 0.025, 0.025 });
@@ -135,8 +133,8 @@ vk::Scene world[] = {
 vk::Shader imageCompute("plane.comp", VK_SHADER_STAGE_COMPUTE_BIT);
 vk::Shader particleCompute("point.comp", VK_SHADER_STAGE_COMPUTE_BIT);
 vk::ComputePPL computePPL[] = {
-    {imageCompute, planeSet, planeLayout},
-    {particleCompute, pointSet, pointLayout}
+    {imageCompute, planeSet, planeLayout,{30,20,1}},
+    {particleCompute, pointSet, pointLayout,{100,100,10}}
 };
 //TODO: Create compute shader that generates a texture/image
 //TODO: Make copy and move operators for pretty much everything

@@ -20,7 +20,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 void main() {
     float testDist = distance(ubo.cam.position, inPosition.xyz);
-    gl_PointSize = 3 / (testDist*testDist + 0.01f);
+    gl_PointSize = 3 / (3*testDist*testDist + 0.1f);
     gl_Position = ubo.cam.proj * ubo.cam.view * vec4(inPosition.xyz,1.f);
     fragColor = vec4(inColor.rgb, 1.f);
 }

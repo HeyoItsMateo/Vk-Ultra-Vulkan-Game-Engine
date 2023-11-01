@@ -23,15 +23,10 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 layout(set = 1, binding = 0) uniform model_UBO{
     mat4 matrix;
-} plane;
-
-layout (set = 2, binding = 0, rgba8_snorm) uniform readonly image2D heightMap;
+} ico;
 
 void main() {
-    vec4 heightData = imageLoad(heightMap, ivec2(inTexCoord));
-    vec4 pos = vec4(inPosition.x, length(heightData), inPosition.z, inPosition[3]);
-
-    gl_Position = ubo.cam.proj * ubo.cam.view * plane.matrix * pos;
+    gl_Position = ubo.cam.proj * ubo.cam.view * ico.matrix * inPosition;
     fragColor = inColor;
     fragNormal = inNormal;
     fragTexCoord = inTexCoord;

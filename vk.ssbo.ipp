@@ -1,9 +1,9 @@
 #pragma once
 namespace vk {
     template<typename T>
-    inline SSBO::SSBO(T& content, VkShaderStageFlags flags, uint32_t bindingCount)
+    inline SSBO::SSBO(T& content, VkShaderStageFlags flags, VkBufferUsageFlags usage, uint32_t bindingCount)
         : Descriptor(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, flags, bindingCount),
-        DataBuffer(sizeof(T) * content.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+        DataBuffer(sizeof(T) * content.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
     {
         vertexCount = content.size();
         size = sizeof(T) * content.size();

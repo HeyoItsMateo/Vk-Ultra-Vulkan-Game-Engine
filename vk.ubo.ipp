@@ -1,4 +1,5 @@
 #include "vk.ubo.h"
+
 namespace vk {
     template<typename T>
     inline UBO::UBO(T& uniforms, VkShaderStageFlags flag, uint32_t bindingCount)

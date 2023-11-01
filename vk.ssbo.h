@@ -36,7 +36,7 @@ struct pop {
 namespace vk {
     struct SSBO : DataBuffer, Descriptor {
         template<typename T>
-        inline SSBO(T& bufferData, VkShaderStageFlags flags, uint32_t bindingCount = 2);
+        inline SSBO(T& bufferData, VkShaderStageFlags flags, VkBufferUsageFlags usage, uint32_t bindingCount = 2);
     public:
         void draw();
     private:

@@ -67,6 +67,27 @@
     <Filter Include="Source Files\Vulkan\Descriptors">
       <UniqueIdentifier>{2f463458-b94e-4e31-8c87-57a9041b4d2f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Scenes">
+      <UniqueIdentifier>{09c6afb1-a010-4172-b5d7-92a424cbe83a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\glsl\Instanced">
+      <UniqueIdentifier>{817ebb49-e62f-4307-939d-4087961a9517}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\glsl\Plane">
+      <UniqueIdentifier>{df8650ff-ac8f-4d0f-ac52-208c40e2b69d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\glsl\Point">
+      <UniqueIdentifier>{805ea506-0c80-4c50-8612-f2019a3dba9d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\glsl\PriceChart">
+      <UniqueIdentifier>{38c8d819-7289-44fd-a54e-fc75784a5c39}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\glsl\Machine Learning">
+      <UniqueIdentifier>{d5f05f5b-86f2-4c7e-8779-51478c08389d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\AI">
+      <UniqueIdentifier>{74487fc3-fa4b-4433-9b59-25fdd99d0971}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -90,7 +111,7 @@
     <ClCompile Include="vk.compute.cpp">
       <Filter>Source Files\Vulkan\Pipeline</Filter>
     </ClCompile>
-    <ClCompile Include="Model.cpp">
+    <ClCompile Include="Mesh.cpp">
       <Filter>Source Files\Game Objects</Filter>
     </ClCompile>
     <ClCompile Include="vk.pipeline.cpp">
@@ -105,25 +126,13 @@
     <ClCompile Include="vk.buffers.cpp">
       <Filter>Source Files\Vulkan\Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="Collision.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\shader_log.bin">
       <Filter>Resource Files\bin</Filter>
-    </None>
-    <None Include="shaders\glsl\instanced.frag">
-      <Filter>Resource Files\shaders\glsl</Filter>
-    </None>
-    <None Include="shaders\glsl\instanced.vert">
-      <Filter>Resource Files\shaders\glsl</Filter>
-    </None>
-    <None Include="shaders\glsl\point.comp">
-      <Filter>Resource Files\shaders\glsl</Filter>
-    </None>
-    <None Include="shaders\glsl\point.frag">
-      <Filter>Resource Files\shaders\glsl</Filter>
-    </None>
-    <None Include="shaders\glsl\point.vert">
-      <Filter>Resource Files\shaders\glsl</Filter>
     </None>
     <None Include="shaders\glsl\vertex.frag">
       <Filter>Resource Files\shaders\glsl</Filter>
@@ -131,13 +140,46 @@
     <None Include="shaders\glsl\vertex.vert">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
-    <None Include="shaders\glsl\plane.frag">
-      <Filter>Resource Files\shaders\glsl</Filter>
+    <None Include="shaders\glsl\instanced.vert">
+      <Filter>Resource Files\shaders\glsl\Instanced</Filter>
+    </None>
+    <None Include="shaders\glsl\instanced.frag">
+      <Filter>Resource Files\shaders\glsl\Instanced</Filter>
     </None>
     <None Include="shaders\glsl\plane.vert">
-      <Filter>Resource Files\shaders\glsl</Filter>
+      <Filter>Resource Files\shaders\glsl\Plane</Filter>
     </None>
     <None Include="shaders\glsl\plane.comp">
+      <Filter>Resource Files\shaders\glsl\Plane</Filter>
+    </None>
+    <None Include="shaders\glsl\plane.frag">
+      <Filter>Resource Files\shaders\glsl\Plane</Filter>
+    </None>
+    <None Include="shaders\glsl\point.comp">
+      <Filter>Resource Files\shaders\glsl\Point</Filter>
+    </None>
+    <None Include="shaders\glsl\point.vert">
+      <Filter>Resource Files\shaders\glsl\Point</Filter>
+    </None>
+    <None Include="shaders\glsl\point.frag">
+      <Filter>Resource Files\shaders\glsl\Point</Filter>
+    </None>
+    <None Include="shaders\glsl\price.vert">
+      <Filter>Resource Files\shaders\glsl\PriceChart</Filter>
+    </None>
+    <None Include="shaders\glsl\price.frag">
+      <Filter>Resource Files\shaders\glsl\PriceChart</Filter>
+    </None>
+    <None Include="shaders\glsl\price.comp">
+      <Filter>Resource Files\shaders\glsl\PriceChart</Filter>
+    </None>
+    <None Include="shaders\glsl\ML.comp">
+      <Filter>Resource Files\shaders\glsl\Machine Learning</Filter>
+    </None>
+    <None Include="ico.vert">
+      <Filter>Resource Files\shaders\glsl</Filter>
+    </None>
+    <None Include="ico.frag">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
   </ItemGroup>
@@ -145,7 +187,7 @@
     <ClInclude Include="Camera.h">
       <Filter>Header Files\Game Objects</Filter>
     </ClInclude>
-    <ClInclude Include="Model.h">
+    <ClInclude Include="Mesh.h">
       <Filter>Header Files\Game Objects</Filter>
     </ClInclude>
     <ClInclude Include="Octree.h">
@@ -210,6 +252,27 @@
     </ClInclude>
     <ClInclude Include="vk.ubo.ipp">
       <Filter>Source Files\Vulkan\Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="OctreeSet.h">
+      <Filter>Header Files\Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="Plane.h">
+      <Filter>Header Files\Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="PlankSet.h">
+      <Filter>Header Files\Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="Particles.h">
+      <Filter>Header Files\Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="neuronIndexer.h">
+      <Filter>Header Files\AI</Filter>
+    </ClInclude>
+    <ClInclude Include="Collision.h">
+      <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="Icosahedron.h">
+      <Filter>Header Files\Scenes</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

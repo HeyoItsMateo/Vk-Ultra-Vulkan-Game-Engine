@@ -1,0 +1,39 @@
+#version 450
+
+layout (binding = 0, rgba8) uniform readonly image2D inputImage;
+layout (binding = 1, rgba8) uniform writeonly image2D outputImage;
+
+// Data processing weights and activation functions for all neurons,
+// indexed to the global identity of a local invocation.
+layout (set = 1, binding = 0) buffer neuronData {
+    float weights[];
+    void apfunc[];
+};
+layout (set = 2, binding = 0) buffer processedData {
+    vec4 outPixel[];
+};
+
+// Neural Layer Size
+layout (local_size_x = 16, local_size_y = 16) in;
+
+// Organization and Indexing
+uvec3 GID = gl_WorkGroupID;
+uvec3 LID = gl_LocalInvocationID;
+uvec3 nWG = gl_NumWorkGroups;
+uvec3 sWG = gl_WorkGroupSize;
+
+uint axon = GID.x + (nWG.x * (GID.y + nWG.y * GID.z));
+uint dendrite = ((nWG.x * GID.x) + (GID.y * nWG.y * (sWG.x + sWG.y)) + LID.x + (LID.y * sWG.x * sWG.y);
+uvec2 reader = gl_LocalInvocationID.xy;
+
+void main() 
+{
+    vec4 inPixel = imageLoad(inputImage, ivec2(gl_LocalInvocationID.xy));
+
+    vec4 processedData = inPixel * weights[dendrite];
+
+    atomicAdd(outPixel[axon], processedData)
+    groupMemoryBarrier();
+    vec4 action = apfunc[axon](outPixel[axon]);
+    imageStore(resultImage, ivec2(gl_WorkGroupID.xy), action);
+}

@@ -200,8 +200,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="Collision.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="Model.cpp" />
+    <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="vk.buffers.cpp" />
     <ClCompile Include="vk.compute.cpp" />
     <ClCompile Include="vk.gpu.cpp" />
@@ -214,26 +215,39 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\shader_log.bin" />
+    <None Include="ico.frag" />
+    <None Include="ico.vert" />
     <None Include="shaders\glsl\instanced.frag" />
     <None Include="shaders\glsl\instanced.vert" />
+    <None Include="shaders\glsl\ML.comp" />
     <None Include="shaders\glsl\plane.comp" />
     <None Include="shaders\glsl\plane.frag" />
     <None Include="shaders\glsl\plane.vert" />
     <None Include="shaders\glsl\point.comp" />
     <None Include="shaders\glsl\point.frag" />
     <None Include="shaders\glsl\point.vert" />
+    <None Include="shaders\glsl\price.comp" />
+    <None Include="shaders\glsl\price.frag" />
+    <None Include="shaders\glsl\price.vert" />
     <None Include="shaders\glsl\vertex.frag" />
     <None Include="shaders\glsl\vertex.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Vk-Ultra Library\Vk-Ultra\vk.ssbo.ipp" />
+    <ClInclude Include="Collision.h" />
+    <ClInclude Include="Icosahedron.h" />
+    <ClInclude Include="neuronIndexer.h" />
+    <ClInclude Include="OctreeSet.h" />
+    <ClInclude Include="Particles.h" />
+    <ClInclude Include="Plane.h" />
+    <ClInclude Include="PlankSet.h" />
     <ClInclude Include="vk.buffers.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="vk.primitives.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="descriptors.h" />
     <ClInclude Include="Octree.h" />
-    <ClInclude Include="Model.h" />
+    <ClInclude Include="Mesh.h" />
     <ClInclude Include="vk.compute.h" />
     <ClInclude Include="vk.cpu.h" />
     <ClInclude Include="vk.engine.h" />

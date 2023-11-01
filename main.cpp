@@ -1,6 +1,5 @@
 #include "vk.engine.h"
 #include "vk.textures.h"
-#include "Octree.h"
 
 #include <algorithm>
 #include <functional>
@@ -9,155 +8,67 @@ bool hasStencilComponent(VkFormat format) {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
+//TODO: Learn discrete differential geometry
+//TODO: Implement waves~
+//TODO: Optimize the swapchain and rendering process
+//TODO: Optimize a fuckload of stuff with shader caching, pipeline caching, parallelization, etc.
+
 vk::Window window("Vulkan");
 vk::Engine app;
 
 vk::Uniforms uniforms;
 vk::UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 
-pop population(100000);
-vk::SSBO ssbo(population.particles, VK_SHADER_STAGE_COMPUTE_BIT);
-
-vk::CombinedImageSampler planksImageSampler("textures/planks.png");
-
-vk::Texture planks("textures/planks.png");
-vk::Sampler sampler(planks.mipLevels);
-
-
-std::vector<triangleList> vertices = {
-    {{-0.5f,  0.5f,  0.5f, 1.f}, {-0.5f,  0.5f,  0.5f, 1.f}, {1.0f, 0.0f, 0.0f, 1.f}, {0.0f, 0.0f}},
-    {{ 0.5f,  0.5f,  0.5f, 1.f}, { 0.5f,  0.5f,  0.5f, 1.f}, {0.0f, 1.0f, 0.0f, 1.f}, {1.0f, 0.0f}},
-    {{ 0.5f,  0.5f, -0.5f, 1.f}, { 0.5f,  0.5f, -0.5f, 1.f}, {0.0f, 0.0f, 1.0f, 1.f}, {1.0f, 1.0f}},
-    {{-0.5f,  0.5f, -0.5f, 1.f}, {-0.5f,  0.5f, -0.5f, 1.f}, {1.0f, 1.0f, 1.0f, 1.f}, {0.0f, 1.0f}},
-
-    {{-0.5f, -0.5f,  0.5f, 1.f}, {-0.5f, -0.5f,  0.5f, 1.f}, {1.0f, 0.0f, 0.0f, 1.f}, {0.0f, 0.0f}},
-    {{ 0.5f, -0.5f,  0.5f, 1.f}, { 0.5f, -0.5f,  0.5f, 1.f}, {0.0f, 1.0f, 0.0f, 1.f}, {1.0f, 0.0f}},
-    {{ 0.5f, -0.5f, -0.5f, 1.f}, { 0.5f, -0.5f, -0.5f, 1.f}, {0.0f, 0.0f, 1.0f, 1.f}, {1.0f, 1.0f}},
-    {{-0.5f, -0.5f, -0.5f, 1.f}, {-0.5f, -0.5f, -0.5f, 1.f}, {1.0f, 1.0f, 1.0f, 1.f}, {0.0f, 1.0f}}
-};
-const std::vector<uint16_t> indices = {
-    0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4
-};
-vk::Mesh model(vertices, indices);
-
-std::vector<VkDescriptorSet> plankSet{
-    ubo.Sets[vk::SwapChain::currentFrame],
-    sampler.Sets[vk::SwapChain::currentFrame],
-    planks.Sets[vk::SwapChain::currentFrame]
-};
-std::vector<VkDescriptorSetLayout> plankLayout{
-    ubo.SetLayout,
-    sampler.SetLayout,
-    planks.SetLayout
-};
-
-//vk::Descriptor descriptors[] = {
-//    vk::UBO{ uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT },
-//    vk::Sampler{ planks.mipLevels },
-//    vk::Texture{ "textures/planks.png" }
-//};
-
-vk::Shader plankShaders[] = {
-    {"vertex.vert", VK_SHADER_STAGE_VERTEX_BIT},
-    {"vertex.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
-};
-vk::GraphicsPPL<triangleList> graphicsPPL(plankShaders, plankSet, plankLayout);
-
-
-vk::Plane plane({ 300, 200 }, { 0.025, 0.025 });
-
-vk::UBO modMat(plane.matrix, VK_SHADER_STAGE_VERTEX_BIT);
-vk::Sampler topographySampler(VK_SHADER_STAGE_VERTEX_BIT);
-vk::ComputeImage heightMap;
-
-std::vector<VkDescriptorSet> planeSet{
-    ubo.Sets[vk::SwapChain::currentFrame],
-    modMat.Sets[vk::SwapChain::currentFrame],
-    topographySampler.Sets[vk::SwapChain::currentFrame],
-    heightMap.Sets[vk::SwapChain::currentFrame]
-};
-std::vector<VkDescriptorSetLayout> planeLayout {
-    ubo.SetLayout,
-    modMat.SetLayout,
-    topographySampler.SetLayout,
-    heightMap.SetLayout
-};
-//
-//vk::Descriptor planeDescriptors[] = {
-//    ubo, modMat, topographySampler, heightMap
-//};
-
-vk::Shader planeShaders[] = {
-    {"plane.vert", VK_SHADER_STAGE_VERTEX_BIT},
-    {"plane.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
-};
-vk::GraphicsPPL<triangleList, VK_POLYGON_MODE_LINE> planePPL(planeShaders, planeSet, planeLayout);
-
-vk::Octree tree(vertices, 0.01f);
-vk::SSBO modelSSBO(tree.matrices, VK_SHADER_STAGE_VERTEX_BIT);
-
-std::vector<VkDescriptorSet> descSet2{
-    ubo.Sets[vk::SwapChain::currentFrame],
-    modelSSBO.Sets[vk::SwapChain::currentFrame]
-};
-std::vector<VkDescriptorSetLayout> SetLayouts_2{
-    ubo.SetLayout,
-    modelSSBO.SetLayout
-};
-vk::Shader octreeShaders[] = {
-    {"instanced.vert", VK_SHADER_STAGE_VERTEX_BIT},
-    {"instanced.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
-};
-vk::GraphicsPPL<lineList> octreePPL(octreeShaders, descSet2, SetLayouts_2);//descSet2
-
-std::vector<VkDescriptorSet> pointSet{
-    ubo.Sets[vk::SwapChain::currentFrame],
-    ssbo.Sets[vk::SwapChain::currentFrame]
-};
-std::vector<VkDescriptorSetLayout> pointLayout{
-    ubo.SetLayout,
-    ssbo.SetLayout
-};
-vk::Shader pointShaders[] = {
-    {"point.vert", VK_SHADER_STAGE_VERTEX_BIT}, 
-    {"point.frag", VK_SHADER_STAGE_FRAGMENT_BIT} 
-};
-vk::GraphicsPPL<Particle, VK_POLYGON_MODE_POINT> particlePPL(pointShaders, pointSet, pointLayout);
+#include "Plane.h"
+#include "Icosahedron.h"
+#include "Particles.h"
 
 vk::Scene world[] = {
-    {planePPL, plane},
-    {octreePPL, tree.rootNode}
+    { planePPL, plane },
+    { icoPPL, icosphere }
 };
 
-vk::Shader imageCompute("plane.comp", VK_SHADER_STAGE_COMPUTE_BIT);
+vk::Shader planeCompute("plane.comp", VK_SHADER_STAGE_COMPUTE_BIT);
 vk::Shader particleCompute("point.comp", VK_SHADER_STAGE_COMPUTE_BIT);
 vk::ComputePPL computePPL[] = {
-    {imageCompute, planeSet, planeLayout,{30,20,1}},
-    {particleCompute, pointSet, pointLayout,{100,100,10}}
+    { planeCompute, planeSet, planeLayout, {heightMap.extent.width/100, heightMap.extent.height/100, 1 } },
+    { particleCompute, pointSet, pointLayout, {100, 100, 10} }
 };
-//TODO: Create compute shader that generates a texture/image
-//TODO: Make copy and move operators for pretty much everything
 
-//TODO: Learn discrete differential geometry
-//TODO: Implement waves~
-//TODO: Optimize the swapchain and rendering process
-//TODO: Optimize a fuckload of stuff with shader caching, pipeline caching, parallelization, etc.
-
-VkPhysicalDeviceProperties properties;
+//double mouseX;
+//double mouseY;
+//void trackMouse(double x, double y) {
+//    // Fetches and stores the coordinates of the cursor
+//    glfwGetCursorPos(vk::Window::handle, &x, &y);
+//    std::cout << "Mouse position: (" << x << ", " << y << ")" << std::endl;
+//}
+//
+//#include <map>
+//#include <glm/gtx/hash.hpp>
+//std::unordered_map<glm::vec4, bool> testMap = {
+//    { { 1, 0, 0, 0 }, true },
+//    { { 0, 0, 1, 0 }, true }
+//};
+//
+//// Hash bin testing
+//#include <random>
+//std::vector<glm::vec3> positions{ 5 };
+//glm::vec3 avgPos{ 0.f };
 
 int main() {
-    //TODO: Make physical device properties file
-    vkGetPhysicalDeviceProperties(vk::GPU::physicalDevice, &properties);
     try {
+        glfwSetKeyCallback(vk::Window::handle, userInput);
+        //auto* instance = static_cast<vk::Camera*>(glfwGetWindowUserPointer(vk::Window::handle));
+        //if (instance) {
+        //    /* do stuff */
+        //}
+
         while (!glfwWindowShouldClose(vk::Window::handle)) {
             glfwPollEvents();
-            std::jthread t1(glfwSetKeyCallback, vk::Window::handle, vk::userInput);
-            
-            //tree.updateTree(vertices);
+            //std::jthread tMouse(trackMouse, mouseX, mouseY);
+
             ubo.update(uniforms);
             app.run(world, computePPL, particlePPL, ssbo);
-            
         }
         vkDeviceWaitIdle(vk::GPU::device);
     }

@@ -30,11 +30,14 @@ layout(std140, set = 1, binding = 1) buffer outSSBO {
 layout (local_size_x = 10, local_size_y = 10, local_size_z = 10) in;
 
 // Organization and Indexing
+// GlobalInvocationID is a vec3 so integer indexing requires breaking down the global invocation into local invocations and work group sizes.
 uvec3 nWG = gl_NumWorkGroups;
 uvec3 sWG = gl_WorkGroupSize;
+// Indexes workgroups into the identities of the particles - the "self"
 uint i = gl_WorkGroupID.x + (nWG.x * gl_WorkGroupID.y) + (nWG.x * nWG.y * gl_WorkGroupID.z);
-uint j = gl_LocalInvocationID.x + (sWG.x * gl_LocalInvocationID.y) + (sWG.x * sWG.y *gl_LocalInvocationID.z);
-    
+// Indexes local invocations into the identities of the particles - the "others"
+uint j = gl_LocalInvocationID.x + (sWG.x * gl_LocalInvocationID.y) + (sWG.x * sWG.y * gl_LocalInvocationID.z);
+
 // Globals
 float dt = float(ubo.dt);
 const float c = 1.0f;

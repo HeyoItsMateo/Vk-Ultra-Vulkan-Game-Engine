@@ -31,7 +31,7 @@ namespace vk {
             double currentTime = glfwGetTime();
             dt = (currentTime - SwapChain::lastTime);
         }
-    }; 
+    };
 
     struct UBO : DataBuffer, Descriptor {
         template<typename T>

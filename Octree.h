@@ -1,7 +1,7 @@
 #ifndef hOctree
 #define hOctree
 
-#include "Model.h"
+#include "Mesh.h"
 
 #include <glm/gtx/string_cast.hpp>
 #include <glm/gtx/hash.hpp>
@@ -10,6 +10,7 @@
 #include <map>
 #include <set>
 
+// Interview - Data Structures
 inline std::unordered_map<glm::vec4, std::bitset<8>> octreeMap = {
             { { 1, 1, 1, 1}, 0b10000000 },
             { {-1, 1, 1, 1}, 0b01000000 },
@@ -228,6 +229,7 @@ private:
 };
 */
 
+// Interview - Binary information
 template <typename T>
 struct biOctree {
     std::bitset<8> node;

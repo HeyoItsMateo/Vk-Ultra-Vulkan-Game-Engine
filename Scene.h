@@ -1,7 +1,7 @@
 #ifndef hScene
 #define hScene
 
-#include "Model.h"
+#include "Mesh.h"
 
 namespace vk {
 	struct Scene {

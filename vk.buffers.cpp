@@ -20,7 +20,7 @@ namespace vk {
 
         VK_CHECK_RESULT(vkAllocateMemory(GPU::device, &allocInfo, nullptr, &memory));
 
-        vkBindBufferMemory(GPU::device, buffer, memory, 0);
+        VK_CHECK_RESULT(vkBindBufferMemory(GPU::device, buffer, memory, 0));
     }
 
     /* Multi-Buffer */

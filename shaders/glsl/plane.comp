@@ -1,18 +1,6 @@
 #version 450
 
-struct camera {
-    mat4 view;
-    mat4 proj;
-    vec3 position;
-};
-
-layout(binding = 0) uniform UniformBufferObject {
-    double dt;
-    mat4 model;
-    camera cam;
-} ubo;
-
-layout (set = 3, binding = 0, rgba8_snorm) uniform writeonly image2D heightMap;
+layout (set = 2, binding = 0, rgba8_snorm) uniform writeonly image2D heightMap;
 
 layout (local_size_x = 30, local_size_y = 20, local_size_z = 1) in;
 
@@ -85,8 +73,8 @@ float snoise(vec2 v)  {
 void main() 
 {
     // Generate random height using position
-    float frequency = 1;
-    float amplitude = 2;
+    float frequency = 0.0025;
+    float amplitude = 5;
     float Height;
     for (int i = 0; i < 5; i++)
     {

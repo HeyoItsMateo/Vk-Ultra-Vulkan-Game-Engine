@@ -6,6 +6,8 @@
 #include "vk.image.h"
 
 namespace vk {
+    inline static double dt;
+
     struct SwapChain : GPU {
         SwapChain();
         ~SwapChain();
@@ -28,8 +30,8 @@ namespace vk {
         
     protected:
         void deltaTime() {
-            double currentTime = glfwGetTime();
-            lastTime = currentTime;
+            dt = (glfwGetTime() - lastTime);
+            lastTime = glfwGetTime();
         }
     private:
         void createSwapChain();

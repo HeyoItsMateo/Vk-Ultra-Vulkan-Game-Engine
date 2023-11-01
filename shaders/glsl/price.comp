@@ -1,0 +1,66 @@
+#version 450
+// x - Time, y - Price, z - numCandles
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(std140, set = 0, binding = 0) readonly buffer inSSBO {
+   vec4 OHLC[ ];
+};
+
+layout (set = 1, binding = 0, rgba8_snorm) uniform writeonly image2D priceChart;
+
+// Organization and Indexing
+uvec3 nWG = gl_NumWorkGroups;
+uvec3 sWG = gl_WorkGroupSize;
+uint i = gl_WorkGroupID.x + (nWG.x * gl_WorkGroupID.y) + (nWG.x * nWG.y * gl_WorkGroupID.z);
+uint j = gl_LocalInvocationID.x + (sWG.x * gl_LocalInvocationID.y) + (sWG.x * sWG.y *gl_LocalInvocationID.z);
+
+void main() 
+{
+    // Candle of the Workgroup's Local Invocation
+    vec4 ohlc = OHLC[gl_GlobalInvocationID.y];
+    // Candle Features
+    float open = ohlc[0];
+    float high = ohlc[1];
+    float low = ohlc[2];
+    float close = ohlc[3];
+    // Candle Trends
+    vec4 bullish = vec4(0,1,0,1);
+    vec4 neutral = vec4(1,1,1,1);
+    vec4 bearish = vec4(1,0,0,1);
+    vec4 invocations = vec4(gl_GlobalInvocationID.x/length(gl_GlobalInvocationID),gl_GlobalInvocationID.y/length(gl_GlobalInvocationID),gl_GlobalInvocationID.z/length(gl_GlobalInvocationID),1);
+    //Draw to Price Chart;
+    ivec2 candle = ivec2(gl_GlobalInvocationID.xy);
+    if ((gl_GlobalInvocationID.x == 1) || (gl_GlobalInvocationID.y == 1)) {
+        imageStore(priceChart, candle, neutral);
+    }
+    else if ((gl_GlobalInvocationID.x < 1) || (gl_GlobalInvocationID.y < 1)) {
+        imageStore(priceChart, candle, vec4(0,0,0,1));
+    }
+//    else if ((gl_GlobalInvocationID.x > 2) && (gl_GlobalInvocationID.y > 2)){
+//        imageStore(priceChart, candle, invocations);
+//    }
+    else if ((gl_GlobalInvocationID.x % open == 0) && (gl_GlobalInvocationID.y % open == 0)){
+        imageStore(priceChart, candle, vec4(1,1,1,1));
+    }
+    
+//    if (gl_LocalInvocationID.x == 1) {  
+//        if ((low <= gl_GlobalInvocationID.y), (gl_GlobalInvocationID.y <= high))
+//        {
+//            if (open == close) {
+//                imageStore(priceChart, candle, neutral);
+//            }
+//            if (open < close) {
+//                imageStore(priceChart, candle, bearish);
+//            }
+//            else {
+//                imageStore(priceChart, candle, vec4(1,1,1,1));
+//            }
+//        }
+//        if (open > close) {
+//                imageStore(priceChart, ivec2(open, close), bullish);
+//            }
+//    }
+//    else {
+//        imageStore(priceChart, candle, vec4(0,0,0,1));
+//    }
+}

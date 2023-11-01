@@ -29,8 +29,7 @@ namespace vk {
     }
     //Public:
     void SwapChain::recreateSwapChain()
-    {//TODO:
-        // Maybe simplify to something like "dateSwap-chan~"
+    {
         int width = 0, height = 0;
         while (width == 0 || height == 0) {
             glfwGetFramebufferSize(vk::Window::handle, &width, &height);
@@ -136,8 +135,7 @@ namespace vk {
         }
     }
     void SwapChain::createRenderPass()
-    {// TODO: Make attachments part of images
-        // Renderpass Attachments
+    {
         VkAttachmentDescription colorAttachment = color.createAttachment();
         VkAttachmentDescription depthAttachment = depth.createAttachment();
         VkAttachmentDescription colorResolve    = color.createResolve();

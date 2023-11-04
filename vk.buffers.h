@@ -8,6 +8,30 @@ namespace vk {
     inline static void createBuffer(VkBuffer& buffer, VkDeviceSize& size, VkBufferUsageFlags usage);
     inline static void allocateMemory(VkBuffer& buffer, VkDeviceMemory& memory, VkMemoryPropertyFlags properties);
 
+    /* Primary Buffer */
+    struct Buffer {
+        Buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+        ~Buffer();
+    public:
+        VkBuffer buffer;
+        VkDeviceMemory memory;
+        VkDeviceSize size;
+    };
+    /* Staging Buffer*/
+    struct StageBuffer : Command {
+        StageBuffer(const void* content, VkDeviceSize size);
+        ~StageBuffer();
+    public:
+        VkBuffer buffer;
+        VkDeviceSize size;
+        void update(const void* content, VkBuffer& dstBuffer);
+        void transferData(VkBuffer& dstBuffer);
+        void transferImage(VkImage& dstImage, VkExtent3D imageExtent);
+    protected:
+        void* data;
+        VkDeviceMemory memory;
+    };
+
     /* Multi-Buffer */
     struct Buffer_ {
         Buffer_(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
@@ -16,16 +40,6 @@ namespace vk {
         VkDeviceSize size;
         std::vector<VkBuffer> buffer;
         std::vector<VkDeviceMemory> memory;
-    };
-
-    /* Solo-Buffer */
-    struct Buffer {
-        Buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
-        ~Buffer();
-    public:
-        VkBuffer buffer;
-        VkDeviceMemory memory;
-        VkDeviceSize size;
     };
 
     /* Parallelized Staging Buffer (?) */
@@ -37,21 +51,6 @@ namespace vk {
         VkDeviceSize size;
         void update(const void* content, std::vector<VkBuffer>& dstBuffers);
         void transferData(std::vector<VkBuffer>& dstBuffers);
-        void transferImage(VkImage& dstImage, VkExtent3D imageExtent);
-    protected:
-        void* data;
-        VkDeviceMemory memory;
-    };
-
-    /* OG Staging Buffer*/
-    struct StageBuffer : Command {
-        StageBuffer(const void* content, VkDeviceSize size);
-        ~StageBuffer();
-    public:
-        VkBuffer buffer;
-        VkDeviceSize size;
-        void update(const void* content, VkBuffer& dstBuffer);
-        void transferData(VkBuffer& dstBuffer);
         void transferImage(VkImage& dstImage, VkExtent3D imageExtent);
     protected:
         void* data;

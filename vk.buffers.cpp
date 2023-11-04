@@ -22,6 +22,66 @@ namespace vk {
 
         VK_CHECK_RESULT(vkBindBufferMemory(GPU::device, buffer, memory, 0));
     }
+    
+    /* Solo-Buffer */
+    Buffer::Buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
+    {
+        this->size = size;
+        createBuffer(buffer, size, usage);
+        allocateMemory(buffer, memory, properties);
+    }
+    Buffer::~Buffer() {
+        vkDestroyBuffer(GPU::device, buffer, nullptr);
+        vkFreeMemory(GPU::device, memory, nullptr);
+    }
+
+    /* Staging Buffer */
+    StageBuffer::StageBuffer(const void* content, VkDeviceSize size) : size(size) {
+        createBuffer(buffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+        allocateMemory(buffer, memory, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        vkMapMemory(GPU::device, memory, 0, size, 0, &data);
+        memcpy(data, content, (size_t)size);
+    }
+    StageBuffer::~StageBuffer() {
+        if (memory != VK_NULL_HANDLE) {
+            vkUnmapMemory(GPU::device, memory);
+            vkDestroyBuffer(GPU::device, buffer, nullptr);
+            vkFreeMemory(GPU::device, memory, nullptr);
+        }
+    }
+    /* Public */
+    void StageBuffer::update(const void* content, VkBuffer& dstBuffer) {
+        memcpy(data, content, static_cast<size_t>(size));
+        transferData(dstBuffer);
+    }
+    void StageBuffer::transferData(VkBuffer& dstBuffer) {
+        beginCommand();
+
+        VkBufferCopy copyRegion{};
+        copyRegion.size = size;
+        vkCmdCopyBuffer(Command::cmdBuffer, buffer, dstBuffer, 1, &copyRegion);
+
+        endCommand();
+    }
+    void StageBuffer::transferImage(VkImage& dstImage, VkExtent3D imageExtent) {
+        beginCommand();
+
+        VkBufferImageCopy region{};
+        region.bufferOffset = 0;
+        region.bufferRowLength = 0;
+        region.bufferImageHeight = 0;
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageOffset = { 0, 0, 0 };
+        region.imageExtent = imageExtent;
+
+        vkCmdCopyBufferToImage(Command::cmdBuffer, buffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        endCommand();
+    }
 
     /* Multi-Buffer */
     Buffer_::Buffer_(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
@@ -41,20 +101,7 @@ namespace vk {
         std::for_each(std::execution::par, memory.begin(), memory.end(),
             [&](VkDeviceMemory memy) { vkFreeMemory(GPU::device, memy, nullptr); });
     }
-
-    /* Solo-Buffer */
-    Buffer::Buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
-    {
-        this->size = size;
-        createBuffer(buffer, size, usage);
-        allocateMemory(buffer, memory, properties);
-    }
-    Buffer::~Buffer() {
-        vkDestroyBuffer(GPU::device, buffer, nullptr);
-        vkFreeMemory(GPU::device, memory, nullptr);
-    }
-    
-    /* Staging Buffer */
+    /* Test Staging Buffer */
     StageBuffer_::StageBuffer_(const void* content, VkDeviceSize size) : size(size)
     {
         createBuffer(buffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -113,54 +160,7 @@ namespace vk {
         submitCommands(cmdBuffers, MAX_FRAMES_IN_FLIGHT);
     }
 
-    /* OG Staging Buffer */
-    StageBuffer::StageBuffer(const void* content, VkDeviceSize size) : size(size) {
-        createBuffer(buffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        allocateMemory(buffer, memory, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        vkMapMemory(GPU::device, memory, 0, size, 0, &data);
-        memcpy(data, content, (size_t)size);
-    }
-    StageBuffer::~StageBuffer() {
-        if (memory != VK_NULL_HANDLE) {
-            vkUnmapMemory(GPU::device, memory);
-            vkDestroyBuffer(GPU::device, buffer, nullptr);
-            vkFreeMemory(GPU::device, memory, nullptr);
-        }
-    }
-    /* Public */
-    void StageBuffer::update(const void* content, VkBuffer& dstBuffer) {
-        memcpy(data, content, static_cast<size_t>(size));
-        transferData(dstBuffer);
-    }
-    void StageBuffer::transferData(VkBuffer& dstBuffer) {
-        beginCommand();
-
-        VkBufferCopy copyRegion{};
-        copyRegion.size = size;
-        vkCmdCopyBuffer(Command::cmdBuffer, buffer, dstBuffer, 1, &copyRegion);
-
-        endCommand();
-    }
-    void StageBuffer::transferImage(VkImage& dstImage, VkExtent3D imageExtent) {
-        beginCommand();
-
-        VkBufferImageCopy region{};
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
-        region.bufferImageHeight = 0;
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel = 0;
-        region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
-        region.imageOffset = { 0, 0, 0 };
-        region.imageExtent = imageExtent;
-
-        vkCmdCopyBufferToImage(Command::cmdBuffer, buffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-        endCommand();
-    }
-
+    
     /* UBO-SSBO Base */
     DataBuffer::DataBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) : size(size) {
         std::array<int, MAX_FRAMES_IN_FLIGHT> idx{};
@@ -177,6 +177,9 @@ namespace vk {
         std::for_each(std::execution::par, _memory.begin(), _memory.end(),
             [&](VkDeviceMemory memory) { vkFreeMemory(GPU::device, memory, nullptr); });
     }
+
+    
+    
 
 }
 

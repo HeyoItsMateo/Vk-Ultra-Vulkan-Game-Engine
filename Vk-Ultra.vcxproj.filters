@@ -129,6 +129,9 @@
     <ClCompile Include="Collision.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Geometry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\shader_log.bin">
@@ -182,6 +185,7 @@
     <None Include="ico.frag">
       <Filter>Resource Files\shaders\glsl</Filter>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h">
@@ -229,9 +233,6 @@
     <ClInclude Include="vk.pipeline.h">
       <Filter>Header Files\Vulkan Engine\Pipelines</Filter>
     </ClInclude>
-    <ClInclude Include="vk.primitives.h">
-      <Filter>Header Files\Vulkan Engine\Utilities</Filter>
-    </ClInclude>
     <ClInclude Include="vk.graphics.ipp">
       <Filter>Source Files\Vulkan\Pipeline</Filter>
     </ClInclude>
@@ -273,6 +274,12 @@
     </ClInclude>
     <ClInclude Include="Icosahedron.h">
       <Filter>Header Files\Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="vk.primitives.h">
+      <Filter>Header Files\Vulkan Engine\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry.h">
+      <Filter>Header Files\Game Objects</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

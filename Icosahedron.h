@@ -1,11 +1,13 @@
 #pragma once
 
-#include "Mesh.h"
 #include "vk.ubo.h"
 #include "vk.textures.h"
 #include "vk.graphics.h"
 
-vk::Icosahedron icosphere(0.15f, 2);
+#include "Mesh.h"
+#include "Geometry.h"
+
+vk::Geometry::Icosahedron icosphere(0.5f, 2);
 
 vk::UBO icoMat(icosphere.matrix, VK_SHADER_STAGE_VERTEX_BIT);
 

@@ -1,11 +1,13 @@
 #pragma once
 
-#include "Mesh.h"
 #include "vk.ubo.h"
 #include "vk.textures.h"
 #include "vk.graphics.h"
 
-vk::Plane plane({ 300, 200 }, { 0.025, 0.025 });
+#include "Mesh.h"
+#include "Geometry.h"
+
+vk::Geometry::Plane plane({ 300, 200 }, { 0.025, 0.025 });
 
 vk::UBO modMat(plane.matrix, VK_SHADER_STAGE_VERTEX_BIT);
 vk::ComputeImage heightMap({ 3000, 2000 }, VK_SHADER_STAGE_VERTEX_BIT);

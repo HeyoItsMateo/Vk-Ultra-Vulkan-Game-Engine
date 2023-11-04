@@ -5,7 +5,7 @@
 
 namespace vk {
 	struct Scene {
-        Scene(Pipeline& renderPipeline, Mesh& gameObject)
+        Scene(Pipeline& renderPipeline, test_Mesh& gameObject)
             : pPipeline(&renderPipeline), pGameObject(&gameObject) {}
     public:
         void render() {
@@ -14,7 +14,7 @@ namespace vk {
         }
     private:
         Pipeline* pPipeline;
-        Mesh* pGameObject;
+        test_Mesh* pGameObject;
 	};
 }
 

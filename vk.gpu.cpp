@@ -71,6 +71,7 @@ namespace vk {
         VkPhysicalDeviceFeatures deviceFeatures{};
         deviceFeatures.fillModeNonSolid = VK_TRUE;
         deviceFeatures.shaderFloat64 = VK_TRUE;
+        deviceFeatures.geometryShader = VK_TRUE;
         deviceFeatures.samplerAnisotropy = VK_TRUE;
         deviceFeatures.sampleRateShading = VK_TRUE; // enable sample shading feature for the device
 

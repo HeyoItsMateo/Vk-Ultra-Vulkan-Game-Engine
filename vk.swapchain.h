@@ -7,6 +7,7 @@
 
 namespace vk {
     inline static double dt;
+    inline static bool time = true;
 
     struct SwapChain : GPU {
         SwapChain();

@@ -88,6 +88,15 @@
     <Filter Include="Header Files\AI">
       <UniqueIdentifier>{74487fc3-fa4b-4433-9b59-25fdd99d0971}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\shaders\glsl\Base">
+      <UniqueIdentifier>{35f5c214-9117-4795-965e-f6d5c1f8c48c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\shaders\glsl\Icosphere">
+      <UniqueIdentifier>{3e09999e-8a3e-4bd5-ac82-d5fd88dbcf53}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Utilities">
+      <UniqueIdentifier>{9924f304-d0ee-4a78-9612-0c6c19b3f881}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -179,13 +188,22 @@
     <None Include="shaders\glsl\ML.comp">
       <Filter>Resource Files\shaders\glsl\Machine Learning</Filter>
     </None>
-    <None Include="ico.vert">
-      <Filter>Resource Files\shaders\glsl</Filter>
-    </None>
-    <None Include="ico.frag">
-      <Filter>Resource Files\shaders\glsl</Filter>
-    </None>
     <None Include="packages.config" />
+    <None Include="debugNormal.geom">
+      <Filter>Resource Files\shaders\glsl\Base</Filter>
+    </None>
+    <None Include="shaders\glsl\base.vert">
+      <Filter>Resource Files\shaders\glsl\Base</Filter>
+    </None>
+    <None Include="shaders\glsl\base.frag">
+      <Filter>Resource Files\shaders\glsl\Base</Filter>
+    </None>
+    <None Include="shaders\glsl\ico.frag">
+      <Filter>Resource Files\shaders\glsl\Icosphere</Filter>
+    </None>
+    <None Include="shaders\glsl\ico.vert">
+      <Filter>Resource Files\shaders\glsl\Icosphere</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h">
@@ -279,6 +297,12 @@
       <Filter>Header Files\Vulkan Engine\Rendering</Filter>
     </ClInclude>
     <ClInclude Include="Geometry.h">
+      <Filter>Header Files\Game Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="Utilities.h">
+      <Filter>Header Files\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="Planet.h">
       <Filter>Header Files\Game Objects</Filter>
     </ClInclude>
   </ItemGroup>

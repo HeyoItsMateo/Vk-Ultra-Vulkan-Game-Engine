@@ -5,6 +5,7 @@ namespace vk {
     {
         position = glm::vec3(0.0f, 0.5f, 2.0f);
         Orientation = glm::vec3(0.f, -0.5f, -2.0f);
+        test_Orientation = glm::quat();
         Up = glm::vec3(0.f, 1.f, 0.f);
 
         view = glm::mat4(1.0f);
@@ -14,14 +15,18 @@ namespace vk {
     void Camera::update(float FOVdeg, float nearPlane, float farPlane)
     {	// Initializes matrices since otherwise they will be the null matrix
         if (glfwJoystickPresent(GLFW_JOYSTICK_1)) {
-            Console_Input();
+            std::jthread t_buttons([this] { Controller_Input(); });
         }
-        std::jthread t_mouse([this] {Mouse_Input(); });
-        std::jthread t_keyboard([this] {Keyboard_Input(); });
+        std::jthread t_mouse([this] { Mouse_Input(); });
+        std::jthread t_keyboard([this] { Keyboard_Input(); });
         if (!noClip) {
             gravity(position, velocity);
         }
-        view = glm::lookAt(position, position + Orientation, Up);
+        //view = glm::lookAt(position, position + Orientation, Up);
+        glm::mat4 rotate = glm::mat4_cast(test_Orientation);
+        glm::mat4 translate = glm::translate(glm::mat4(1.f), -position);
+        view = rotate * translate;
+
         proj = glm::perspective(glm::radians(FOVdeg), (float)GPU::Extent.width / GPU::Extent.height, nearPlane, farPlane);
         proj[1][1] *= -1;
     }
@@ -72,17 +77,20 @@ namespace vk {
         }
     }
 
-    void Camera::Console_Input() {
+    void Camera::Controller_Input() {
+        glm::mat4 inverted = glm::inverse(glm::toMat4(test_Orientation));
         // Button Mapping
         int buttonCount;
         const unsigned char* buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttonCount);
         if (buttons[1])
         {// X button
-            position += 2 * velocity * Up;
+            glm::vec3 up = normalize(glm::vec3(inverted[1]));
+            position += 2 * velocity * up;
         }
         if (buttons[2])
-        {
-            position -= 2 * velocity * Up;
+        {// O button
+            glm::vec3 down = normalize(glm::vec3(inverted[1]));
+            position -= 2 * velocity * down;
         }
         if (buttons[10])
         {// left stick in
@@ -116,33 +124,40 @@ namespace vk {
         // Controller Joystick Settings
         int axesCount;
         const float* axes = glfwGetJoystickAxes(GLFW_JOYSTICK_1, &axesCount);
+        if ((axes[2] > RS_deadzone_X) || (axes[2] < -RS_deadzone_X))
+        {
+            rotX += sensitivity * axes[2];
+            qPitch = glm::angleAxis(rotX, glm::vec3(0, 1, 0));
+        }
+        if ((axes[5] > RS_deadzone_Y) || (axes[5] < -RS_deadzone_Y))
+        {
+            rotY += sensitivity * axes[5];
+            if (rotY >= 0.875f) {
+                rotY = 0.875f;
+            }
+            else if (rotY <= -0.75f) {
+                rotY = -0.75f;
+            }
+            qYaw = glm::angleAxis(rotY, glm::vec3(1, 0, 0));
+        }
+        test_Orientation = glm::normalize(qYaw * qPitch);
+
         // Left and Right
         if ((axes[0] > 0.1) || (axes[0] < -0.1))
         {
-            position += velocity * axes[0] * glm::normalize(glm::cross(Orientation, Up));
+            glm::vec3 sideways = normalize(glm::vec3(inverted[0]));
+            position += sideways * (velocity * axes[0]);
         }
-        // Forward and Backwards
+        //Forward and Backwards
         if ((axes[1] > 0.1) || (axes[1] < -0.1))
         {
-            position -= velocity * axes[1] * Orientation;
+            glm::vec3 forward = normalize(glm::vec3(inverted[2]));
+            position += forward * (velocity * axes[1]);
         }
-        if ((axes[2] > 0.1) || (axes[2] < -0.1))
-        {
-            float rotX = sensitivity * axes[2];
-            Orientation = glm::rotate(Orientation, glm::radians(-rotX), Up);
+    }
 
-        }
-        if ((axes[5] > 0.15) || (axes[5] < -0.15))
-        {
-            float rotY = sensitivity * axes[5];
-            // Calculates upcoming vertical change in the Orientation
-            glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotY), glm::normalize(glm::cross(Orientation, Up)));
-
-            if (abs(glm::angle(newOrientation, Up) - glm::radians(90.0f)) <= glm::radians(85.0f))
-            {	// Decides whether or not the next vertical Orientation is legal or not
-                Orientation = newOrientation;
-            }
-        }
+    float Camera::rotation(const float input) {
+        return glm::radians(sensitivity * input);
     }
 
     void Camera::Mouse_Input()
@@ -166,22 +181,22 @@ namespace vk {
 
             // Normalizes and shifts the coordinates of the cursor such that they begin in the middle of the screen
             // and then "transforms" them into degrees 
-            float rotX = sensitivity * (float)(mouseY - (SwapChain::Extent.height / 2)) / SwapChain::Extent.height;
-            float rotY = sensitivity * (float)(mouseX - (SwapChain::Extent.width / 2)) / SwapChain::Extent.width;
+            float rotX = sensitivity * (float)(mouseY - (SwapChain::Extent.height / 2.0)) / SwapChain::Extent.height;
+            float rotY = sensitivity * (float)(mouseX - (SwapChain::Extent.width / 2.0)) / SwapChain::Extent.width;
 
             // Calculates upcoming vertical change in the Orientation
             glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotX), glm::normalize(glm::cross(Orientation, Up)));
 
             if (abs(glm::angle(newOrientation, Up) - glm::radians(90.0f)) <= glm::radians(85.0f))
             {	// Decides whether or not the next vertical Orientation is legal or not
-                Orientation = newOrientation;
+                //Orientation = newOrientation;
             }
 
             // Rotates the Orientation left and right
-            Orientation = glm::rotate(Orientation, glm::radians(-rotY), Up);
+            //Orientation = glm::rotate(Orientation, glm::radians(-rotY), Up);
 
             // Sets mouse cursor to the middle of the screen so that it doesn't end up roaming around
-            glfwSetCursorPos(Window::handle, (SwapChain::Extent.width / 2), (SwapChain::Extent.height / 2));
+            glfwSetCursorPos(Window::handle, (SwapChain::Extent.width / 2.0), (SwapChain::Extent.height / 2.0));
         }
         else if (!glfwGetMouseButton(Window::handle, GLFW_MOUSE_BUTTON_RIGHT))
         {	// Unhides cursor since camera is not looking around anymore

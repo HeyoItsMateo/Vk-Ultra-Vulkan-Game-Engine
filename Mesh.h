@@ -83,10 +83,10 @@ namespace vk {
     public:
         Buffer* VBO;
         Buffer* EBO;
-        template<typename T>
-        inline void update(std::vector<T>& vertices, std::vector<uint16_t>& indices) {
-            stageVBO.update(vertices, VBO.buffer);
-            stageEBO.update(indices, EBO.buffer);
+        template<typename T, typename U>
+        inline void update(std::vector<T>& vertices, std::vector<U>& indices) {
+            stageVBO->update(vertices.data(), VBO->buffer);
+            stageEBO->update(indices.data(), EBO->buffer);
         }
         virtual void draw(uint32_t instanceCount = 1) {
             VkCommandBuffer& commandBuffer = EngineCPU::renderCommands[SwapChain::currentFrame];

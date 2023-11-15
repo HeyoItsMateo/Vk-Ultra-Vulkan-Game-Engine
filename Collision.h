@@ -12,21 +12,12 @@
 #include <glm/gtx/vector_angle.hpp>
 
 #include "Mesh.h"
+#include "Utilities.h"
 
 float linear(float t)
 {//Todo
 	//	Find out how to define the shape of surfaces with a function
 	return t;
-}
-
-
-float lerp(float v0, float v1, float t)
-{// v0 initial value, v1 final value, t input to interpolate
-	//	t is a float from 0 to 1
-	//		t can be replaced with a function of value t
-	//		that returns a value between 0 to 1, the shape of t
-	//		changes the interpolated value.
-	return (1 - t) * v0 + t * v1;
 }
 
 //Interview - Data Structures (ML Image Recognition)

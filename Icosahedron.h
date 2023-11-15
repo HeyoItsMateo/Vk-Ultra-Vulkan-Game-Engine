@@ -6,10 +6,11 @@
 
 #include "Mesh.h"
 #include "Geometry.h"
+#include "Planet.h"
 
-vk::Geometry::Icosahedron icosphere(0.5f, 2);
+vk::Planet icosphere(0.5f, 4);
 
-vk::UBO icoMat(icosphere.matrix, VK_SHADER_STAGE_VERTEX_BIT);
+vk::UBO icoMat(icosphere.matrix, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
 
 std::vector<VkDescriptorSet> icoSet {
     ubo.Sets[vk::SwapChain::currentFrame],
@@ -25,4 +26,4 @@ vk::Shader icoShaders[] = {
     {"ico.frag", VK_SHADER_STAGE_FRAGMENT_BIT}
 };
 
-vk::GraphicsPPL<triangleList, VK_POLYGON_MODE_FILL> icoPPL(icoShaders, icoSet, icoLayout);
+vk::GraphicsPPL<triangleList, VK_POLYGON_MODE_LINE> icoPPL(icoShaders, icoSet, icoLayout);

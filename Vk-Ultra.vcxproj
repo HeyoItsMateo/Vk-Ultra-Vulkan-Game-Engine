@@ -217,9 +217,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\shader_log.bin" />
-    <None Include="ico.frag" />
-    <None Include="ico.vert" />
+    <None Include="debugNormal.geom" />
     <None Include="packages.config" />
+    <None Include="shaders\glsl\base.frag" />
+    <None Include="shaders\glsl\base.vert" />
+    <None Include="shaders\glsl\ico.frag" />
+    <None Include="shaders\glsl\ico.vert" />
     <None Include="shaders\glsl\instanced.frag" />
     <None Include="shaders\glsl\instanced.vert" />
     <None Include="shaders\glsl\ML.comp" />
@@ -244,7 +247,9 @@
     <ClInclude Include="OctreeSet.h" />
     <ClInclude Include="Particles.h" />
     <ClInclude Include="Plane.h" />
+    <ClInclude Include="Planet.h" />
     <ClInclude Include="PlankSet.h" />
+    <ClInclude Include="Utilities.h" />
     <ClInclude Include="vk.buffers.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="vk.primitives.h" />

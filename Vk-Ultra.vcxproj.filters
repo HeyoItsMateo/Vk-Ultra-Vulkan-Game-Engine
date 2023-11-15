@@ -136,10 +136,10 @@
       <Filter>Source Files\Vulkan\Utilities</Filter>
     </ClCompile>
     <ClCompile Include="Collision.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Game Objects</Filter>
     </ClCompile>
     <ClCompile Include="Geometry.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Game Objects</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

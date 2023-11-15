@@ -1,0 +1,8 @@
+/*******************************************************
+ * Copyright Matthew Christopher Flores Semyonov - All Rights Reserved
+ * 
+ * Unauthorized copying and/or distribution of this project, via any medium is strictly prohibited
+ * Proprietary and confidential
+ *
+ * Written by Matthew Christopher Flores Semyonov <mattsemyonov@outlook.com>, November 2023
+ *******************************************************/

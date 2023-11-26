@@ -107,7 +107,7 @@ namespace vk {
             delete stageVBO;
             delete stageEBO;
 
-            indexCount = static_cast<uint32_t>(indices.size() * 3);
+            indexCount = setIndexCount(indices);
 
             VBO = new Buffer(vertices.size() * sizeof(T), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
             EBO = new Buffer(indices.size() * sizeof(U), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -119,7 +119,7 @@ namespace vk {
         }
     private:
         template<typename U>
-        inline uint32_t setIndexCount(std::vector<U> indices) {
+        inline uint32_t setIndexCount(std::vector<U>& indices) {
             if (sizeof(U) == 6) {
                 return indices.size() * 3;
             }

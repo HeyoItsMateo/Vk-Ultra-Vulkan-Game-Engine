@@ -97,6 +97,12 @@
     <Filter Include="Header Files\Utilities">
       <UniqueIdentifier>{9924f304-d0ee-4a78-9612-0c6c19b3f881}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\ProcGenLib">
+      <UniqueIdentifier>{f7c26044-dcd3-4074-bfbb-fbff0eb832fd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ProcGenLib">
+      <UniqueIdentifier>{8648b1eb-e866-4709-91ac-21884a90bfaa}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -140,6 +146,12 @@
     </ClCompile>
     <ClCompile Include="Geometry.cpp">
       <Filter>Source Files\Game Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="Plate.cpp">
+      <Filter>Source Files\ProcGenLib</Filter>
+    </ClCompile>
+    <ClCompile Include="Planet.cpp">
+      <Filter>Source Files\ProcGenLib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -302,8 +314,11 @@
     <ClInclude Include="Utilities.h">
       <Filter>Header Files\Utilities</Filter>
     </ClInclude>
+    <ClInclude Include="ProcGenLib.h">
+      <Filter>Header Files\ProcGenLib</Filter>
+    </ClInclude>
     <ClInclude Include="Planet.h">
-      <Filter>Header Files\Game Objects</Filter>
+      <Filter>Header Files\ProcGenLib</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

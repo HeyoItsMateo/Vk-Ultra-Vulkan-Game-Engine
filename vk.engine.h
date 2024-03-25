@@ -17,8 +17,10 @@
 namespace vk {   
     struct Engine : SwapChain, EngineCPU {
         uint32_t imageIndex = 0;
+
         template <int sceneCount, int computeCount>
-        void run(Scene(&scene)[sceneCount], ComputePPL(&compute)[computeCount], Pipeline& particlePPL, SSBO& ssbo) {
+        void run(Scene(&scene)[sceneCount], ComputePPL(&compute)[computeCount], Pipeline& particlePPL, SSBO& ssbo)
+        {
             std::jthread t1(&Engine::deltaTime, this);
 
             vkAquireImage(imageAvailable[currentFrame], imageIndex);
@@ -37,6 +39,7 @@ namespace vk {
 
             currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         }
+
     protected:
         void updateVtx() {
             /*

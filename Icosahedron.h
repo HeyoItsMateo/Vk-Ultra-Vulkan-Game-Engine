@@ -8,7 +8,7 @@
 #include "Geometry.h"
 #include "Planet.h"
 
-pgl::Planet icosphere(10, 0.5f, 4);
+Planet icosphere(10, 0.5f, 4);
 
 vk::UBO icoMat(icosphere.matrix, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
 

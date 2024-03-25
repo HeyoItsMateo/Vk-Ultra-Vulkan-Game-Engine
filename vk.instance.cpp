@@ -75,8 +75,7 @@ namespace vk {
         vkDestroyInstance(instance, nullptr);
     }
 
-    void Instance::createInstance()
-    {
+    void Instance::createInstance() {
         if (enableValidationLayers && !checkValidationLayerSupport()) {
             throw std::runtime_error("validation layers requested, but not available!");
         }
@@ -84,9 +83,9 @@ namespace vk {
         VkApplicationInfo appInfo
         { VK_STRUCTURE_TYPE_APPLICATION_INFO };
         appInfo.pApplicationName = "Hello Triangle";
-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 3, 261);
+        appInfo.applicationVersion = VK_MAKE_VERSION(1, 3, 275);
         appInfo.pEngineName = "No Engine";
-        appInfo.engineVersion = VK_MAKE_VERSION(1, 3, 261);
+        appInfo.engineVersion = VK_MAKE_VERSION(1, 3, 275);
         appInfo.apiVersion = VK_API_VERSION_1_3;
 
         auto extensions = getRequiredExtensions();

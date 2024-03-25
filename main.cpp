@@ -31,7 +31,7 @@ vk::Scene world[] = {
 vk::Shader planeCompute("plane.comp", VK_SHADER_STAGE_COMPUTE_BIT);
 vk::Shader particleCompute("point.comp", VK_SHADER_STAGE_COMPUTE_BIT);
 vk::ComputePPL computePPL[] = {
-    //{ planeCompute, planeSet, planeLayout, {heightMap.extent.width/100, heightMap.extent.height/100, 1 } },
+    { planeCompute, planeSet, planeLayout, {heightMap.extent.width/100, heightMap.extent.height/100, 1 } },
     { particleCompute, pointSet, pointLayout, {100, 100, 10} }
 };
 

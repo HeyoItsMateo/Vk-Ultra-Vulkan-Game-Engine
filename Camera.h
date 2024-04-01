@@ -39,6 +39,7 @@ inline void userInput(GLFWwindow* window, int key, int scancode, int action, int
 namespace vk {
     inline void gravity(glm::vec3& position, float& velocity) {
         position.y += (velocity * dt) + (-9.8 * (0.5 * (dt * dt)));
+        std::cout << "gravity should be working\n";
     }
 
     struct Camera {
@@ -56,6 +57,7 @@ namespace vk {
     protected:
         bool noClip = true;
         bool firstClick = true;
+        float mouse_sensitivity = 1.f;
 
         float velocity = 0.05f;
         float sensitivity = 0.075f;
@@ -71,8 +73,6 @@ namespace vk {
         float rotY = 0.f;
         glm::quat qPitch = glm::angleAxis(0.f, glm::vec3(0, 1, 0));
         glm::quat qYaw = glm::angleAxis(0.f, glm::vec3(1, 0, 0));
-
-        
 
         float rotation(const float input);
     };

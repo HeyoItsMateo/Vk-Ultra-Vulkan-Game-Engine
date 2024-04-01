@@ -33,6 +33,9 @@ namespace vk {
         int width = 0, height = 0;
         while (width == 0 || height == 0) {
             glfwGetFramebufferSize(vk::Window::handle, &width, &height);
+            Extent.width = width;
+            Extent.height = height;
+
             glfwWaitEvents();
         }
         vkDeviceWaitIdle(device);

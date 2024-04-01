@@ -24,7 +24,7 @@ vk::UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT 
 #include "Particles.h"
 
 vk::Scene world[] = {
-    //{ planePPL, plane },
+    { planePPL, plane },
     { icoPPL, icosphere },
 };
 

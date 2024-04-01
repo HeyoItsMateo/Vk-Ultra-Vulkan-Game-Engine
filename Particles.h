@@ -32,7 +32,7 @@ struct particleSystem {
     }
 };
 
-particleSystem stars(10);
+particleSystem stars(100000);
 vk::SSBO ssbo(stars.particles, VK_SHADER_STAGE_COMPUTE_BIT, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
 

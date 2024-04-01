@@ -17,11 +17,14 @@ namespace vk {
         if (glfwJoystickPresent(GLFW_JOYSTICK_1)) {
             std::jthread t_buttons([this] { Controller_Input(); });
         }
+
         std::jthread t_mouse([this] { Mouse_Input(); });
         std::jthread t_keyboard([this] { Keyboard_Input(); });
+
         if (!noClip) {
             gravity(position, velocity);
         }
+
         //view = glm::lookAt(position, position + Orientation, Up);
         glm::mat4 rotate = glm::mat4_cast(test_Orientation);
         glm::mat4 translate = glm::translate(glm::mat4(1.f), -position);
@@ -32,34 +35,41 @@ namespace vk {
     }
 
     void Camera::Keyboard_Input() {
+        glm::mat4 inverted = glm::inverse(glm::toMat4(test_Orientation));
         if (glfwGetKey(Window::handle, GLFW_KEY_W))
-        {
-            position += velocity * Orientation;
+        {// Forwards
+            glm::vec3 forward = -normalize(glm::vec3(inverted[2]));
+            position += forward * (velocity);
         }
 
         if (glfwGetKey(Window::handle, GLFW_KEY_A))
-        {
-            position -= velocity * glm::normalize(glm::cross(Orientation, Up));
+        {// Strafe Left
+            glm::vec3 sideways = normalize(glm::vec3(inverted[0]));
+            position -= sideways * (velocity);
         }
 
         if (glfwGetKey(Window::handle, GLFW_KEY_S))
-        {
-            position -= velocity * Orientation;
+        {// Backwards
+            glm::vec3 backward = normalize(glm::vec3(inverted[2]));
+            position += backward * (velocity);
         }
 
         if (glfwGetKey(Window::handle, GLFW_KEY_D))
-        {
-            position += velocity * glm::normalize(glm::cross(Orientation, Up));
+        {// Strafe Right
+            glm::vec3 sideways = normalize(glm::vec3(inverted[0]));
+            position += sideways * (velocity);
         }
 
         if (glfwGetKey(Window::handle, GLFW_KEY_SPACE))
         {
-            position += velocity * Up;
+            glm::vec3 up = normalize(glm::vec3(inverted[1]));
+            position += 2 * velocity * up;
         }
 
         if (glfwGetKey(Window::handle, GLFW_KEY_LEFT_CONTROL))
         {
-            position -= velocity * Up;
+            glm::vec3 down = normalize(glm::vec3(inverted[1]));
+            position -= 2 * velocity * down;
         }
 
         if (glfwGetKey(Window::handle, GLFW_KEY_LEFT_SHIFT))
@@ -161,14 +171,22 @@ namespace vk {
     }
 
     void Camera::Mouse_Input()
-    {
+    {//TODO: fix mouse input
+        // Mouse input does not work atm
+        // 
+        // 
         // Handles mouse inputs
+
         if (glfwGetMouseButton(Window::handle, GLFW_MOUSE_BUTTON_RIGHT))
-        {	// Hides mouse cursor
+        {// Right click initiates mouse input
+            // Hides mouse cursor
             glfwSetInputMode(Window::handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
             if (firstClick)
             {	// Prevents camera from jumping on the first click
+
+                std::cout << "DEBUG: first right click!" << std::endl;
+
                 glfwSetCursorPos(Window::handle, (SwapChain::Extent.width / 2.0), (SwapChain::Extent.height / 2.0));
                 firstClick = false;
             }
@@ -178,30 +196,25 @@ namespace vk {
 
             // Fetches the coordinates of the cursor
             glfwGetCursorPos(Window::handle, &mouseX, &mouseY);
+            std::cout << "Mouse position: (" << mouseX << ", " << mouseY << ")" << std::endl;
 
             // Normalizes and shifts the coordinates of the cursor such that they begin in the middle of the screen
             // and then "transforms" them into degrees 
-            float rotX = sensitivity * (float)(mouseY - (SwapChain::Extent.height / 2.0)) / SwapChain::Extent.height;
-            float rotY = sensitivity * (float)(mouseX - (SwapChain::Extent.width / 2.0)) / SwapChain::Extent.width;
+            float rotX = mouse_sensitivity * (float)(mouseY - (SwapChain::Extent.height / 2.0)) / SwapChain::Extent.height;
+            float rotY = mouse_sensitivity * (float)(mouseX - (SwapChain::Extent.width / 2.0)) / SwapChain::Extent.width;
 
-            // Calculates upcoming vertical change in the Orientation
-            glm::vec3 newOrientation = glm::rotate(Orientation, glm::radians(-rotX), glm::normalize(glm::cross(Orientation, Up)));
+            qPitch = glm::angleAxis(rotY, glm::vec3(0, 1, 0));
+            qYaw = glm::angleAxis(rotX, glm::vec3(1, 0, 0));
 
-            if (abs(glm::angle(newOrientation, Up) - glm::radians(90.0f)) <= glm::radians(85.0f))
-            {	// Decides whether or not the next vertical Orientation is legal or not
-                //Orientation = newOrientation;
-            }
+            test_Orientation = glm::normalize(qYaw * qPitch);
 
-            // Rotates the Orientation left and right
-            //Orientation = glm::rotate(Orientation, glm::radians(-rotY), Up);
-
-            // Sets mouse cursor to the middle of the screen so that it doesn't end up roaming around
             glfwSetCursorPos(Window::handle, (SwapChain::Extent.width / 2.0), (SwapChain::Extent.height / 2.0));
         }
         else if (!glfwGetMouseButton(Window::handle, GLFW_MOUSE_BUTTON_RIGHT))
         {	// Unhides cursor since camera is not looking around anymore
             glfwSetInputMode(Window::handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             // Makes sure the next time the camera looks around it doesn't jump
+            std::cout << "not mouse button anymore\n";
             firstClick = true;
         }
     }

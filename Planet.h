@@ -18,7 +18,7 @@ public:
     glm::vec3 position{ 0.f };
     glm::vec3 axis{ 0.f };
     glm::vec4 color{ 0.f };
-    float omega = 1.f;
+    float omega = 0.f;
 
     std::set<uint16_t> vtx_ids; //Contains all vertex IDs associated with the plate
     std::set<uint16_t> vtx_edge; //Contains the vertex index for edge verticess

@@ -69,10 +69,6 @@ namespace vk {
                 case GLFW_KEY_C:
                     //wireframe = !wireframe;
                     break;
-                case GLFW_KEY_V:
-                    //vSync = !vSync;
-                    //glfwSwapInterval(vSync);
-                    break;
                 }
                 break;
             default:
@@ -84,10 +80,14 @@ namespace vk {
             VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, waitSemaphore, VK_NULL_HANDLE, &imageIndex);
 
             if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+                std::cout << "Error: " << result << std::endl;
+                std::cout << "Out of date KHR!" << std::endl;
                 recreateSwapChain();
                 return;
             }
             else if (result != VK_SUBOPTIMAL_KHR && result != VK_SUCCESS) {
+                std::cout << "Warning: " << result << std::endl;
+                std::cout << "Problem with KHR, rechecking result..." << std::endl;
                 VK_CHECK_RESULT(result);
             }
             

@@ -143,7 +143,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.261.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;C:\Users\matts\Documents\Visual Studio 2022\Source\Repos\eigen-3.4.0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.4.313.2\Include;C:\Users\matts\source\lib\glfw-3.4.bin.WIN64\include;C:\Users\matts\source\lib\glm-1.0.1;C:\Users\matts\source\lib\stb-master;C:\Users\matts\source\lib\eigen-3.4.0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>

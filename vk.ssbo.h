@@ -4,6 +4,11 @@
 
 #include <vector>
 #include <random>
+
+#ifndef GLM_ENABLE_EXPERIMENTAL
+    #define GLM_ENABLE_EXPERIMENTAL
+#endif
+
 #include <glm/glm.hpp>
 #include "vk.primitives.h"
 

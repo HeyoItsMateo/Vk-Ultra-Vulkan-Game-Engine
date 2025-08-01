@@ -15,27 +15,36 @@
 #include <chrono>
 
 namespace vk {   
-    struct Engine : SwapChain, EngineCPU {
-        uint32_t imageIndex = 0;
+    struct Engine : _EngineCPU {
+        Engine(GPU* pGPU, Swapchain* pSwapchain) 
+            : pGPU(pGPU), pSwapchain(pSwapchain), _EngineCPU(pGPU)
+        {        };
+
+        ~Engine() {}
+
+        
         template <int sceneCount, int computeCount>
         void run(Scene(&scene)[sceneCount], ComputePPL(&compute)[computeCount], Pipeline& particlePPL, SSBO& ssbo) {
-            std::jthread t1(&Engine::deltaTime, this);
+            std::jthread t1(deltaTime);
 
-            vkAquireImage(imageAvailable[currentFrame], imageIndex);
+            uint32_t currFrame = pSwapchain->currentFrame;
+
+            pSwapchain->vkAquireImage(imageAvailable[currFrame], pSwapchain->imageIndex);
             // Compute Queue
-            vkComputeSync();
+            vkComputeSync(pSwapchain->imageIndex);
             runCompute(compute);
-            vkSubmitComputeQueue();
+            vkSubmitComputeQueue(pGPU, pSwapchain->imageIndex);
 
             // Render Queue
-            vkRenderSync();
-            runGraphics(scene, particlePPL, ssbo, imageIndex);
-            vkSubmitGraphicsQueue();
+            vkRenderSync(pSwapchain->imageIndex);
+            runGraphics(scene, particlePPL, ssbo, pSwapchain->imageIndex);
+            vkSubmitGraphicsQueue(pGPU, pSwapchain->imageIndex);
 
             /* Present Image */
-            vkPresentImage(imageCompleted[currentFrame], imageIndex);
+            pSwapchain->presentImage(imageCompleted[currFrame], pSwapchain->imageIndex);
 
-            currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+            pSwapchain->currentFrame = (currFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+            pSwapchain->imageIndex = pSwapchain->currentFrame;
         }
     protected:
         void updateVtx() {
@@ -77,18 +86,9 @@ namespace vk {
             }
         }
     private:
-        void vkAquireImage(VkSemaphore& waitSemaphore, uint32_t& imageIndex) {
-            VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, waitSemaphore, VK_NULL_HANDLE, &imageIndex);
+        GPU* pGPU;
+        Swapchain* pSwapchain;
 
-            if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-                recreateSwapChain();
-                return;
-            }
-            else if (result != VK_SUBOPTIMAL_KHR && result != VK_SUCCESS) {
-                VK_CHECK_RESULT(result);
-            }
-            
-        }
         template <int size>
         void runCompute(ComputePPL(&compute)[size]) {
             VkCommandBufferBeginInfo beginInfo
@@ -108,25 +108,26 @@ namespace vk {
 
             VkRenderPassBeginInfo renderPassInfo
             { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
-            renderPassInfo.renderPass = renderPass;
-            renderPassInfo.framebuffer = framebuffers[imageIndex];
+            renderPassInfo.renderPass = pSwapchain->renderPass;
+            renderPassInfo.framebuffer = pSwapchain->framebuffers[imageIndex];
             renderPassInfo.renderArea.offset = { 0, 0 };
-            renderPassInfo.renderArea.extent = Extent;
+            renderPassInfo.renderArea.extent = pGPU->extent;
             renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
             renderPassInfo.pClearValues = clearValues.data();
 
-            VkViewport viewport = createViewPort();
-            VkRect2D scissor = createScissor({ 0, 0 });
+            VkViewport viewport = createViewPort(pGPU->extent);
+            VkRect2D scissor = createScissor({ 0, 0 }, pGPU->extent);
 
             VkCommandBufferBeginInfo beginInfo
             { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 
-            VK_CHECK_RESULT(vkBeginCommandBuffer(renderCommands[currentFrame], &beginInfo));
+            VK_CHECK_RESULT(vkBeginCommandBuffer(renderCommands[pSwapchain->currentFrame], &beginInfo));
 
-            vkCmdBeginRenderPass(renderCommands[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdSetViewport(renderCommands[currentFrame], 0, 1, &viewport);
-            vkCmdSetScissor(renderCommands[currentFrame], 0, 1, &scissor);
+            vkCmdBeginRenderPass(renderCommands[pSwapchain->currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdSetViewport(renderCommands[pSwapchain->currentFrame], 0, 1, &viewport);
+            vkCmdSetScissor(renderCommands[pSwapchain->currentFrame], 0, 1, &scissor);
         }
+
         template <int size>
         void runGraphics(Scene(&scene)[size], Pipeline& particlePipeline, SSBO& ssbo, uint32_t& imageIndex) {
             beginRenderPass(imageIndex);
@@ -135,43 +136,18 @@ namespace vk {
             ssbo.draw();
 
             for (int i = 0; i < size; i++) {
-                scene[i].render();
+                scene[i].render(renderCommands[pSwapChain->currentFrame]);
             }
 
             endRenderPass();
         }
+
         void endRenderPass() {
-            vkCmdEndRenderPass(renderCommands[currentFrame]);
-            VK_CHECK_RESULT(vkEndCommandBuffer(renderCommands[currentFrame]));
+            vkCmdEndRenderPass(renderCommands[pSwapchain->currentFrame]);
+            VK_CHECK_RESULT(vkEndCommandBuffer(renderCommands[pSwapchain->currentFrame]));
         }
 
-        
-        void vkPresentImage(VkSemaphore& waitSemaphore, uint32_t& imageIndex) {
-            VkPresentInfoKHR presentInfo
-            { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
-            presentInfo.pNext = NULL;
-            presentInfo.swapchainCount = 1;
-            presentInfo.pSwapchains = &swapChainKHR;
-            presentInfo.pImageIndices = &imageIndex;
-
-            if (waitSemaphore != VK_NULL_HANDLE) {
-                presentInfo.pWaitSemaphores = &waitSemaphore;
-                presentInfo.waitSemaphoreCount = 1;
-            }
-
-            VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
-
-            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || Window::framebufferResized) {
-                Window::framebufferResized = false;
-                recreateSwapChain();
-                return;
-            }
-            else {
-                VK_CHECK_RESULT(result);
-            }
-        }
-
-        VkViewport createViewPort(VkExtent2D& extent = Extent) {
+        VkViewport createViewPort(VkExtent2D& extent) {
             VkViewport viewport{};
             viewport.x = 0.0f;
             viewport.y = 0.0f;
@@ -181,7 +157,8 @@ namespace vk {
             viewport.maxDepth = 1.0f;
             return viewport;
         }
-        VkRect2D createScissor(VkOffset2D offset, VkExtent2D& extent = Extent) {
+
+        VkRect2D createScissor(VkOffset2D offset, VkExtent2D& extent) {
             VkRect2D scissor{};
             scissor.offset = offset;
             scissor.extent = extent;

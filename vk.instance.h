@@ -36,37 +36,53 @@ const bool enableValidationLayers = true;
 std::string errorString(VkResult errorCode);
 
 namespace vk {
+    const int MAX_FRAMES_IN_FLIGHT = 3;
+
     struct Window {
         Window(const char* windowName, uint32_t WIDTH = 800, uint32_t HEIGHT = 600);
         ~Window();
     public:
-        inline static GLFWwindow* handle; //GLFW window handle
-        inline static bool framebufferResized = false;
+        GLFWwindow* handle; //GLFW window handle
+        bool framebufferResized = false;
+
+        bool validateKHR(VkResult&& result) {
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+                framebufferResized = false;
+                return false;
+            }
+            else {
+                VK_CHECK_RESULT(result);
+                return true;
+            }
+        }
+
     private:
         static void framebufferResizeCallback(GLFWwindow* handle, int width, int height);
     };
-
+    //TODO: Make instances having windows optional to support windowless compute and whatever else
     struct Instance {
-        Instance();
+        Instance(Window* window);
         ~Instance();
     public:
-        inline static VkInstance instance;
-        inline static VkSurfaceKHR surface;
-        VkDebugUtilsMessengerEXT debugMessenger;
-    protected:
-        const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
+        Window* pWindow;
+        VkInstance instance;
+        VkSurfaceKHR surface;
+
+        inline static const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
     private:
-        void createInstance();
-        void setupDebugMessenger();
-        void createSurface();
-
-        bool checkValidationLayerSupport();
-        VkResult CreateDebugUtilsMessengerEXT(const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
-        void DestroyDebugUtilsMessengerEXT(const VkAllocationCallbacks* pAllocator);
+        inline static VkDebugUtilsMessengerEXT debugMessenger;
         
-        std::vector<const char*> getRequiredExtensions();
+        static void createInstance(VkInstance& instance);
+        static void setupDebugMessenger(VkInstance& instance);
+        static void createSurface(Instance* instance, GLFWwindow* handle);
 
-        static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+        static bool checkValidationLayerSupport();
+        static VkResult CreateDebugUtilsMessengerEXT(VkInstance& instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator);
+        static void DestroyDebugUtilsMessengerEXT(VkInstance& instance, const VkAllocationCallbacks* pAllocator);
+        
+        static std::vector<const char*> getRequiredExtensions();
+
+        static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);    
     };
 
 }

@@ -60,22 +60,24 @@ namespace vk {
     }
 
     /* Vulkan Instance */
-    Instance::Instance()
-    {
-        createInstance();
-        setupDebugMessenger();
-        createSurface();
+    Instance::Instance(Window* window)
+        : pWindow(window)
+    {// Decide if I want to use the params and internal construction or rvalue construction
+        createInstance(instance);
+        setupDebugMessenger(instance);
+        //TODO: figure out how to make this optional for windowless rendering/compute
+        createSurface(this, pWindow->handle);
     }
     Instance::~Instance()
     {
         if (enableValidationLayers) {
-            DestroyDebugUtilsMessengerEXT(nullptr);
+            DestroyDebugUtilsMessengerEXT(instance, nullptr);
         }
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
     }
 
-    void Instance::createInstance()
+    void Instance::createInstance(VkInstance& instance)
     {
         if (enableValidationLayers && !checkValidationLayerSupport()) {
             throw std::runtime_error("validation layers requested, but not available!");
@@ -84,10 +86,10 @@ namespace vk {
         VkApplicationInfo appInfo
         { VK_STRUCTURE_TYPE_APPLICATION_INFO };
         appInfo.pApplicationName = "Hello Triangle";
-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 3, 261);
-        appInfo.pEngineName = "No Engine";
-        appInfo.engineVersion = VK_MAKE_VERSION(1, 3, 261);
-        appInfo.apiVersion = VK_API_VERSION_1_3;
+        appInfo.applicationVersion = VK_MAKE_VERSION(1, 4, 313);
+        appInfo.pEngineName = "VkUltra";
+        appInfo.engineVersion = VK_MAKE_VERSION(1, 4, 313);
+        appInfo.apiVersion = VK_API_VERSION_1_4;
 
         auto extensions = getRequiredExtensions();
 
@@ -113,7 +115,8 @@ namespace vk {
         }
         VK_CHECK_RESULT(vkCreateInstance(&createInfo, nullptr, &instance));
     }
-    void Instance::setupDebugMessenger()
+
+    void Instance::setupDebugMessenger(VkInstance& instance)
     {
         if (!enableValidationLayers) return;
 
@@ -123,11 +126,12 @@ namespace vk {
         createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         createInfo.pfnUserCallback = debugCallback;
 
-        VK_CHECK_RESULT(CreateDebugUtilsMessengerEXT(&createInfo, nullptr, &debugMessenger));
+        VK_CHECK_RESULT(CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr));
     }
-    void Instance::createSurface()
+
+    void Instance::createSurface(Instance* instance, GLFWwindow* handle)
     {
-        VK_CHECK_RESULT(glfwCreateWindowSurface(instance, vk::Window::handle, nullptr, &surface));
+        VK_CHECK_RESULT(glfwCreateWindowSurface(instance->instance, handle, nullptr, &instance->surface));
     }
 
     bool Instance::checkValidationLayerSupport()
@@ -155,17 +159,24 @@ namespace vk {
 
         return true;
     }
-    VkResult Instance::CreateDebugUtilsMessengerEXT(const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger)
+    /// <summary>
+    /// Creates a Vulkan debug messenger.
+    /// </summary>
+    /// <param name="instance">- vk::Instance object's child "instance" of type VkInstance, passed by reference</param>
+    /// <param name="pCreateInfo">- Creation information for the debug messenger utility</param>
+    /// <param name="pAllocator">- Idk yet </param>
+    /// <returns>The status of the Vulkan operation creating the debug messenger utility.</returns>
+    VkResult Instance::CreateDebugUtilsMessengerEXT(VkInstance& instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator)
     {
         auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
         if (func != nullptr) {
-            return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+            return func(instance, pCreateInfo, pAllocator, &debugMessenger);
         }
         else {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
     }
-    void Instance::DestroyDebugUtilsMessengerEXT(const VkAllocationCallbacks* pAllocator)
+    void Instance::DestroyDebugUtilsMessengerEXT(VkInstance& instance, const VkAllocationCallbacks* pAllocator)
     {
         auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
         if (func != nullptr) {

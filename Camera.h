@@ -5,6 +5,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -16,23 +17,24 @@
 #include <map>
 typedef void(*glfwFunc)();
 
-inline void close() {
-    glfwSetWindowShouldClose(vk::Window::handle, true);
-}
 inline void pause() {
     vk::time = !vk::time;
 }
 inline std::map<int, void(*)()> keyboard_map
 {
-    { GLFW_KEY_ESCAPE, close },
     { GLFW_KEY_T, pause }
 };
+
 inline void userInput(GLFWwindow* window, int key, int scancode, int action, int mods)
 {// Sets Keyboard Commands
     //TODO: map
     if (action && keyboard_map[key]) {
         glfwFunc func = keyboard_map[key];
         (*func)();
+        return;
+    }
+    else if (action && GLFW_KEY_ESCAPE) {
+        glfwSetWindowShouldClose(window, true);
     }
 }
 
@@ -45,12 +47,7 @@ namespace vk {
         alignas(16) glm::mat4 view;
         alignas(16) glm::mat4 proj;
         alignas(16) glm::vec3 position;
-        Camera();
-        
-    private:
-        void Controller_Input();
-        void Mouse_Input();
-        void Keyboard_Input();
+        Camera(GLFWwindow* const handle, VkExtent2D* const extent);
     public:
         void update(float FOVdeg, float nearPlane, float farPlane);
     protected:
@@ -72,9 +69,13 @@ namespace vk {
         glm::quat qPitch = glm::angleAxis(0.f, glm::vec3(0, 1, 0));
         glm::quat qYaw = glm::angleAxis(0.f, glm::vec3(1, 0, 0));
 
-        
-
         float rotation(const float input);
+
+        VkExtent2D* extent;
+        GLFWwindow* handle;
+        void Controller_Input();
+        void Mouse_Input();
+        void Keyboard_Input();
     };
 }
 

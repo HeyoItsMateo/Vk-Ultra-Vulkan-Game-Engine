@@ -9,43 +9,53 @@
 #include <optional>
 #include <set>
 
-const int MAX_FRAMES_IN_FLIGHT = 3;
-
 namespace vk {
-    struct GPU : Instance {
-        GPU();
+    struct GPU {
+        GPU(Instance* vkInstance);
         ~GPU();
     public:
-        inline static VkDevice device;
-        inline static VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-        inline static VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+        Instance* pInstance;
 
-        inline static std::optional<uint32_t> graphicsFamily;
-        inline static VkQueue graphicsQueue;
-        inline static VkQueue computeQueue;
-
-        inline static std::optional<uint32_t> presentFamily;
-        inline static VkQueue presentQueue;
+        VkDevice device;
+        VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+        VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+        
+        // Decide if I want to make these into objects to reduce memory transfer/access
+        mutable std::optional<uint32_t> graphicsFamily;
+        VkQueue graphicsQueue;
+        VkQueue computeQueue;
+        // Decide if I want to make these into objects to reduce memory transfer/access
+        mutable std::optional<uint32_t> presentFamily;
+        std::vector<VkPresentModeKHR> presentModes;
+        VkQueue presentQueue;
 
         VkSurfaceCapabilitiesKHR capabilities;
         std::vector<VkSurfaceFormatKHR> formats;
-        std::vector<VkPresentModeKHR> presentModes;
-        inline static VkExtent2D Extent;
+        VkExtent2D extent;
+        
+        //TODO: figure out how to cache the result of this
+        static uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
-        static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     protected:
-        const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+        inline static std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     private:
-        void pickPhysicalDevice();
-        void createPhysicalDevice();
+        /*---GPU Device Creation Functions---*/
+        static void pickPhysicalDevice(GPU* pGPU);
+        static void createPhysicalDevice(GPU* pGPU);
 
-        bool isDeviceSuitable(VkPhysicalDevice device);
-        bool findQueueFamilies(VkPhysicalDevice device);
-        bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-        void querySwapChainSupport(VkPhysicalDevice device);
+        static bool isDeviceSuitable(GPU* pGPU, const VkPhysicalDevice device, const VkSurfaceKHR surface);
+        static bool findQueueFamilies(const GPU* pGPU, const VkPhysicalDevice device, const VkSurfaceKHR surface);
+        static bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+        static void querySwapChainSupport(GPU* pGPU, const VkPhysicalDevice device, const VkSurfaceKHR surface);
 
-        void getSampleCount();
-        void getSwapExtent();
+        static VkSampleCountFlagBits getSampleCount(VkPhysicalDevice& physicalDevice);
+        static VkExtent2D getSwapExtent(GLFWwindow* handle, VkSurfaceCapabilitiesKHR& capabilities);
+    };
+
+    struct GPU_Object {
+        GPU_Object(GPU* const pHost) : pHost(pHost) {};
+    protected:
+        GPU* pHost;
     };
 }
 #endif

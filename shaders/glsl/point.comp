@@ -43,7 +43,7 @@ float dt = float(ubo.dt);
 const float c = 1.0f;
 const float e = 2.7182818284;
 
-const vec4 boundarySize = vec4(0.8f);
+const vec3 boundarySize = vec3(0.8f);
 
 
 
@@ -76,6 +76,22 @@ float out_of_bounds(float axisPosition, float axisVelocity, float axisBoundary) 
     }
     else return axisPosition;
 }
+vec3 boundedUpdate(inout vec4 position, inout vec4 velocity) {
+    if (position.x >= boundarySize.x || position.x <= -boundarySize.x) {
+        velocity.x = -2 * velocity.x;
+        position.x = clamp(position.x, -boundarySize.x + 0.001, boundarySize.x - 0.001);
+        
+    }
+    if (position.y >= boundarySize.y || position.y <= -boundarySize.y) {
+        velocity.y = -2 * velocity.y;
+        position.y = clamp(position.y, -boundarySize.y + 0.001, boundarySize.y - 0.001f);
+    }
+    if (position.z >= boundarySize.y || position.z <= -boundarySize.z) {
+        velocity.z = -2 * velocity.z;
+        position.z = clamp(position.z, -boundarySize.z + 0.001, boundarySize.z - 0.001);
+    }
+    return position.xyz + velocity.xyz * dt;
+}
 
 void main() 
 {
@@ -96,22 +112,9 @@ void main()
             particle_1[i].velocity.xyz *= c/2;
         }
 
-        particle_1[i].position.xyz += particle_1[i].velocity.xyz * dt;
-        //particlesOut[i].velocity = particlesIn[i].velocity;
-
         // Flip movement at window border
-        particle_1[i].position.x = out_of_bounds(particle_1[i].position.x, particle_1[i].velocity.x, boundarySize.x);
-        particle_1[i].position.y = out_of_bounds(particle_1[i].position.y, particle_1[i].velocity.y, boundarySize.y);
-        particle_1[i].position.z = out_of_bounds(particle_1[i].position.z, particle_1[i].velocity.z, boundarySize.z);
-        /*
-        if (out_of_bounds(particlesOut[i].position.y, boundarySize.y)) {
-            particlesOut[i].velocity.y = -particlesOut[i].velocity.y;
-            particlesOut[i].position.y = OOBcheck(particlesOut[i].position.y, particlesOut[i].velocity.y, boundarySize.y);
-        }
-        if (out_of_bounds(particlesOut[i].position.z, boundarySize.z)) {
-            particlesOut[i].velocity.z = -particlesOut[i].velocity.z;
-            particlesOut[i].position.z = OOBcheck(particlesOut[i].position.z, particlesOut[i].velocity.z, boundarySize.z);
-        }
-        */
+        particle_1[i].position.xyz = boundedUpdate(particle_1[i].position, particle_1[i].velocity);
+        particle_1[i].color.xyz = normalize(particle_1[i].velocity.xyz);
+        // Defunct: particle_1[i].position.xyz += particle_1[i].velocity.xyz * dt;
     }   
 }

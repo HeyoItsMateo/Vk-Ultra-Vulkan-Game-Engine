@@ -60,43 +60,45 @@ static void checkLog(const std::string& filename) {
 
     //File shaderFile(filename);
     if (!std::filesystem::exists(SHADER_LOG)) {
-        std::ofstream out(SHADER_LOG, std::ios_base::out | std::ios::binary);
-        if (!out.is_open()) {
+        std::ofstream log(SHADER_LOG, std::ios_base::out | std::ios::binary);
+        if (!log.is_open()) {
             throw std::runtime_error(std::format("Failed to open {}!", SHADER_LOG));
         }
         compileGLSL(filename);
-        out << filename << '\0';
-        out << last_write << '\0';
-        out.close();
+        log << filename << '\0';
+        log << last_write << '\0';
+        log.close();
         return;
     }
     if (!std::filesystem::exists(".\\shaders\\" + filename + ".spv")) {
         compileGLSL(filename);
         return;
     }
-    std::fstream out(SHADER_LOG, std::ios_base::out | std::ios_base::in | std::ios::binary);
-    if (!out.is_open()) {
+
+    std::fstream log(SHADER_LOG, std::ios_base::out | std::ios_base::in | std::ios::binary);
+    if (!log.is_open()) {
         throw std::runtime_error(std::format("Failed to open {}!", SHADER_LOG));
     }
-    out.seekg(std::ios::beg);
-    for (std::string line; std::getline(out, line, '\0');) {
+    log.seekg(std::ios::beg);
+    for (std::string line; std::getline(log, line, '\0');) {
         if (line == filename) {
-            int loc = static_cast<int>(out.tellg());
-            std::getline(out, line, '\0');
+            int loc = static_cast<int>(log.tellg());
+            std::getline(log, line, '\0');
             if (line != last_write) {
                 std::cout << std::format("Updating log entry for {}\n", filename);
                 compileGLSL(filename);
-                out.seekg(loc);
-                out << last_write << '\0';
+                log.seekg(loc);
+                log << last_write << '\0';
             }
             std::cout << std::format("{} is up to date.\n", filename);
-            out.close();
+            log.close();
             return;
         }
-        std::getline(out, line, '\0');
+        // Consume last_write for other shaderfiles
+        std::getline(log, line, '\0');
     }
-    out.close();
-
+    log.close();
+    // SHADER_LOG and SPIR-V files exist, but a log entry for the shader does not exist.
     compileGLSL(filename);
     std::ofstream update(SHADER_LOG, std::ios::out | std::ios::binary | std::ios::app);
     if (!update.is_open()) {

@@ -14,10 +14,14 @@ bool hasStencilComponent(VkFormat format) {
 //TODO: Optimize a fuckload of stuff with shader caching, pipeline caching, parallelization, etc.
 
 vk::Window window("Vulkan");
-vk::Engine app;
+vk::Instance instance(&window);
+vk::GPU gpu(&instance);
+vk::Swapchain swapchain(&gpu);
 
-vk::Uniforms uniforms;
-vk::UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
+vk::Engine vkUltra(&gpu, &swapchain);
+
+vk::Uniforms uniforms(window.handle, &gpu.extent);
+vk::UBO ubo(gpu.device, uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
 
 #include "Plane.h"
 #include "Icosahedron.h"
@@ -25,7 +29,7 @@ vk::UBO ubo(uniforms, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT 
 
 vk::Scene world[] = {
     //{ planePPL, plane },
-    { icoPPL, icosphere },
+    { icoPPL, icosphere }
 };
 
 vk::Shader planeCompute("plane.comp", VK_SHADER_STAGE_COMPUTE_BIT);
@@ -72,7 +76,7 @@ struct test_memcpy {
         size_t temp = indices.size();
         for (int i = 0; i < count; i++) {
             std::vector<triPrim> newIndices;
-            for (uint16_t i = 0; i < temp; i += 3) {
+            for(uint16_t i = 0; i < temp; i += 3) {
                 uint16_t j = i + 1;
                 uint16_t k = i + 2;
 
@@ -102,22 +106,33 @@ struct test_memcpy {
 int main() {
     //vk::Geometry::test_graph testGraph(icosphere.vertices);
     test_memcpy testing(test_vtx, test_idx);
+    printf("UBO Buffer Addresses:\n");
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkBufferDeviceAddressInfo buffAddrInfo {
+            VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+            nullptr,
+            ssbo.buffers[i]
+        };
+        printf("    buffers[%d] = %d\n", i, vkGetBufferDeviceAddress(gpu.device, &buffAddrInfo));
+    }
+    
+
     try {
-        glfwSetKeyCallback(vk::Window::handle, userInput);
+        glfwSetKeyCallback(window.handle, userInput);
         //auto* instance = static_cast<vk::Camera*>(glfwGetWindowUserPointer(vk::Window::handle));
         //if (instance) {
         //    /* do stuff */
         //}
-        while (!glfwWindowShouldClose(vk::Window::handle)) {
+        while (!glfwWindowShouldClose(window.handle)) {
             glfwPollEvents();
             //std::jthread tMouse(trackMouse, mouseX, mouseY);
 
             ubo.update(uniforms);
             
-            app.run(world, computePPL, particlePPL, ssbo);
+            vkUltra.run(world, computePPL, particlePPL, ssbo);
             icosphere.updatePlates();
         }
-        vkDeviceWaitIdle(vk::GPU::device);
+        vkDeviceWaitIdle(gpu.device);
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;

@@ -13,8 +13,8 @@ pgl::Planet icosphere(10, 0.5f, 4);
 vk::UBO icoMat(icosphere.matrix, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
 
 std::vector<VkDescriptorSet> icoSet {
-    ubo.Sets[vk::SwapChain::currentFrame],
-    icoMat.Sets[vk::SwapChain::currentFrame],
+    ubo.Sets[0],
+    icoMat.Sets[0],
 };
 std::vector<VkDescriptorSetLayout> icoLayout {
     ubo.SetLayout,

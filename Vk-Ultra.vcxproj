@@ -143,14 +143,14 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.261.1\Include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\include;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glm-master;C:\Users\matts\Documents\Visual Studio 2022\Libraries\stb-master;C:\Users\matts\Documents\Visual Studio 2022\Source\Repos\eigen-3.4.0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.4.313.2\Include;C:\Users\matts\source\lib\glfw-3.4.bin.WIN64\include;C:\Users\matts\source\lib\glm-1.0.1;C:\Users\matts\source\lib\stb-master;C:\Users\matts\source\lib\eigen-3.4.0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\VulkanSDK\1.3.250.1\Lib;C:\Users\matts\Documents\Visual Studio 2022\Libraries\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\VulkanSDK\1.4.313.2\Lib;C:\Users\matts\source\lib\glfw-3.4.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>C:\VulkanSDK\1.4.313.2\Lib\vulkan-1.lib;C:\Users\matts\source\lib\glfw-3.4.bin.WIN64\lib-vc2022\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <FxCompile>
@@ -205,8 +205,10 @@
     <ClCompile Include="Geometry.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
+    <ClCompile Include="Planet.cpp" />
     <ClCompile Include="vk.buffers.cpp" />
     <ClCompile Include="vk.compute.cpp" />
+    <ClCompile Include="descriptors.cpp" />
     <ClCompile Include="vk.gpu.cpp" />
     <ClCompile Include="vk.image.cpp" />
     <ClCompile Include="vk.instance.cpp" />

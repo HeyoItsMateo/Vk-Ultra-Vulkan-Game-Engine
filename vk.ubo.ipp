@@ -2,9 +2,9 @@
 
 namespace vk {
     template<typename T>
-    inline UBO::UBO(T& uniforms, VkShaderStageFlags flag, uint32_t bindingCount)
+    inline UBO::UBO(VkDevice device, T& uniforms, VkShaderStageFlags flag, uint32_t bindingCount)
         : DataBuffer(sizeof(T), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-        Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, flag, bindingCount), stageUBO(&uniforms, sizeof(T))
+        Descriptor(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, flag, bindingCount), stageUBO(&uniforms, sizeof(T))
     {
         stageUBO.transferData(buffers);
         writeDescriptorSets(bindingCount);
@@ -13,6 +13,11 @@ namespace vk {
     template<typename T>
     inline void UBO::update(T& uniforms) {
         uniforms.update();
+
+        //TODO: Figure out batching
+        //  when a call is made to update, the command buffer is increased in size to accept this command,
+        //  once all commands in a render cycle are submitted by the CPU, the command object finishes the
+        //  buffer and makes one submission to the GPU.
         stageUBO.update(&uniforms, buffers);
     }
 
@@ -36,7 +41,7 @@ namespace vk {
                 descriptorWrites[j].dstBinding = j;
                 descriptorWrites[j].pBufferInfo = &bufferInfo[j];
             }
-            vkUpdateDescriptorSets(GPU::device, bindingCount, descriptorWrites.data(), 0, nullptr);
+            vkUpdateDescriptorSets(device, bindingCount, descriptorWrites.data(), 0, nullptr);
         }
     }
 }

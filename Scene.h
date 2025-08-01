@@ -6,11 +6,12 @@
 namespace vk {
 	struct Scene {
         Scene(Pipeline& renderPipeline, test_Mesh& gameObject)
-            : pPipeline(&renderPipeline), pGameObject(&gameObject) {}
+            : pPipeline(&renderPipeline), pGameObject(&gameObject)
+        {}
     public:
-        void render() {
+        void render(VkCommandBuffer& commandBuffer) {
             pPipeline->bind();
-            pGameObject->draw();
+            pGameObject->draw(commandBuffer);
         }
     private:
         Pipeline* pPipeline;

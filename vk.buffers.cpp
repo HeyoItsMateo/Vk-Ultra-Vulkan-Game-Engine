@@ -1,53 +1,59 @@
 #include "vk.buffers.h"
+
 namespace vk {
-    void createBuffer(VkBuffer& buffer, VkDeviceSize& size, VkBufferUsageFlags usage) {
-        VkBufferCreateInfo bufferInfo
-        { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        bufferInfo.size = size;
-        bufferInfo.usage = usage;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    namespace Buffers {
+        void create(VkDevice device, VkBuffer& buffer, VkDeviceSize& size, VkBufferUsageFlags usage) {
+            VkBufferCreateInfo bufferInfo
+            { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+            bufferInfo.size = size;
+            bufferInfo.usage = usage;
+            bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        VK_CHECK_RESULT(vkCreateBuffer(GPU::device, &bufferInfo, nullptr, &buffer));
-    }
-    void allocateMemory(VkBuffer& buffer, VkDeviceMemory& memory, VkMemoryPropertyFlags properties) {
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(GPU::device, buffer, &memRequirements);
+            VK_CHECK_RESULT(vkCreateBuffer(device, &bufferInfo, nullptr, &buffer));
+        }
+        void malloc(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer& buffer, VkDeviceMemory& memory, VkMemoryPropertyFlags properties) {
+            VkMemoryRequirements memRequirements;
+            vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
 
-        VkMemoryAllocateInfo allocInfo
-        { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = GPU::findMemoryType(memRequirements.memoryTypeBits, properties);
+            VkMemoryAllocateInfo allocInfo
+            { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+            allocInfo.allocationSize = memRequirements.size;
+            allocInfo.memoryTypeIndex = GPU::findMemoryType(physicalDevice, memRequirements.memoryTypeBits, properties);
 
-        VK_CHECK_RESULT(vkAllocateMemory(GPU::device, &allocInfo, nullptr, &memory));
+            VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &memory));
 
-        VK_CHECK_RESULT(vkBindBufferMemory(GPU::device, buffer, memory, 0));
+            VK_CHECK_RESULT(vkBindBufferMemory(device, buffer, memory, 0));
+        }
     }
     
     /* Solo-Buffer */
-    Buffer::Buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
+    Buffer::Buffer(GPU* const pHost, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
+        : GPU_Object(pHost)
     {
         this->size = size;
-        createBuffer(buffer, size, usage);
-        allocateMemory(buffer, memory, properties);
+        Buffers::create(pHost->device, buffer, size, usage);
+        Buffers::malloc(pHost->device, pHost->physicalDevice, buffer, memory, properties);
     }
     Buffer::~Buffer() {
-        vkDestroyBuffer(GPU::device, buffer, nullptr);
-        vkFreeMemory(GPU::device, memory, nullptr);
+        vkDestroyBuffer(pHost->device, buffer, nullptr);
+        vkFreeMemory(pHost->device, memory, nullptr);
     }
 
     /* Staging Buffer */
-    StageBuffer::StageBuffer(const void* content, VkDeviceSize size) : size(size) {
-        createBuffer(buffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        allocateMemory(buffer, memory, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    StageBuffer::StageBuffer(GPU* const pHost, const void* content, VkDeviceSize size)
+        : Command(pHost), size(size)
+    {
+        Buffers::create(pHost->device, buffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+        Buffers::malloc(pHost->device, pHost->physicalDevice, buffer, memory, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        vkMapMemory(GPU::device, memory, 0, size, 0, &data);
+        vkMapMemory(pHost->device, memory, 0, size, 0, &data);
         memcpy(data, content, (size_t)size);
     }
     StageBuffer::~StageBuffer() {
         if (memory != VK_NULL_HANDLE) {
-            vkUnmapMemory(GPU::device, memory);
-            vkDestroyBuffer(GPU::device, buffer, nullptr);
-            vkFreeMemory(GPU::device, memory, nullptr);
+            vkUnmapMemory(pHost->device, memory);
+            vkDestroyBuffer(pHost->device, buffer, nullptr);
+            vkFreeMemory(pHost->device, memory, nullptr);
         }
     }
     /* Public */
@@ -62,7 +68,7 @@ namespace vk {
         copyRegion.size = size;
         vkCmdCopyBuffer(Command::cmdBuffer, buffer, dstBuffer, 1, &copyRegion);
 
-        endCommand();
+        endCommand(pHost->graphicsQueue);
     }
     void StageBuffer::transferImage(VkImage& dstImage, VkExtent3D imageExtent) {
         beginCommand();
@@ -80,10 +86,10 @@ namespace vk {
 
         vkCmdCopyBufferToImage(Command::cmdBuffer, buffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-        endCommand();
+        endCommand(pHost->graphicsQueue);
     }
 
-    /* Multi-Buffer */
+    /* Multi-Buffer
     Buffer_::Buffer_(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
         this->size = size;
         buffer.resize(MAX_FRAMES_IN_FLIGHT);
@@ -101,19 +107,21 @@ namespace vk {
         std::for_each(std::execution::par, memory.begin(), memory.end(),
             [&](VkDeviceMemory memy) { vkFreeMemory(GPU::device, memy, nullptr); });
     }
+    */
     /* Test Staging Buffer */
-    StageBuffer_::StageBuffer_(const void* content, VkDeviceSize size) : size(size)
+    StageBuffer_::StageBuffer_(GPU* const pHost, const void* content, VkDeviceSize size)
+        : Command(pHost), size(size)
     {
-        createBuffer(buffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        allocateMemory(buffer, memory, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        Buffers::create(pHost->device, buffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+        Buffers::malloc(pHost->device, pHost->physicalDevice, buffer, memory, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        vkMapMemory(GPU::device, memory, 0, size, 0, &data);
+        vkMapMemory(pHost->device, memory, 0, size, 0, &data);
         memcpy(data, content, (size_t)size);
     }
     StageBuffer_::~StageBuffer_() {
-        vkUnmapMemory(GPU::device, memory);
-        vkDestroyBuffer(GPU::device, buffer, nullptr);
-        vkFreeMemory(GPU::device, memory, nullptr);
+        vkUnmapMemory(pHost->device, memory);
+        vkDestroyBuffer(pHost->device, buffer, nullptr);
+        vkFreeMemory(pHost->device, memory, nullptr);
     }
     /* Public */
     void StageBuffer_::update(const void* content, std::vector<VkBuffer>& dstBuffers) {
@@ -162,20 +170,22 @@ namespace vk {
 
     
     /* UBO-SSBO Base */
-    DataBuffer::DataBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) : size(size) {
+    DataBuffer::DataBuffer(GPU* const pHost, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
+        : GPU_Object(pHost), size(size)
+    {
         std::array<int, MAX_FRAMES_IN_FLIGHT> idx{};
         std::iota(idx.begin(), idx.end(), 0);
-        std::for_each(idx.begin(), idx.end(), [&](int i) {
-            createBuffer(buffers[i], size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage);
-            allocateMemory(buffers[i], _memory[i], properties);
+        std::for_each(std::execution::par, idx.begin(), idx.end(), [&](int i) {
+            Buffers::create(pHost->device, buffers[i], size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage);
+            Buffers::malloc(pHost->device, pHost->physicalDevice, buffers[i], _memory[i], properties);
             });
     }
     DataBuffer::~DataBuffer() {
         std::for_each(std::execution::par, buffers.begin(), buffers.end(),
-            [&](VkBuffer buffer) { vkDestroyBuffer(GPU::device, buffer, nullptr); });
+            [&](VkBuffer buffer) { vkDestroyBuffer(pHost->device, buffer, nullptr); });
 
         std::for_each(std::execution::par, _memory.begin(), _memory.end(),
-            [&](VkDeviceMemory memory) { vkFreeMemory(GPU::device, memory, nullptr); });
+            [&](VkDeviceMemory memory) { vkFreeMemory(pHost->device, memory, nullptr); });
     }
 
     

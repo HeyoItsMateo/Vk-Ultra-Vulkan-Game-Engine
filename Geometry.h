@@ -4,6 +4,10 @@
 #include "Mesh.h"
 #include "Utilities.h"
 
+#ifndef GLM_ENABLE_EXPERIMENTAL
+    #define GLM_ENABLE_EXPERIMENTAL
+#endif
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -112,10 +116,7 @@ namespace vk {
                         vertices.resize(m);
                         indices.resize(n);
 
-                        // Update the indices
-                        uint16_t ai = m - 3;
-                        uint16_t bi = m - 2;
-                        uint16_t ci = m - 1;
+                        
 
                         std::vector<triangleList> newVtx =
                         {
@@ -124,6 +125,11 @@ namespace vk {
                             midpoint(vertices[indices[k]], vertices[indices[i]], radius)
                         };
                         memcpy(&vertices[m - 3], newVtx.data(), newVtx.size() * sizeof(triangleList));
+
+                        // Update the indices
+                        uint16_t ai = m - 3;
+                        uint16_t bi = m - 2;
+                        uint16_t ci = m - 1;
 
                         std::vector<uint16_t> newIdx =
                         {

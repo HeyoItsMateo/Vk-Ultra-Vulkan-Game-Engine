@@ -1,72 +1,45 @@
-#pragma once
+#ifndef hDescriptors
+#define hDescriptors
 
-#include <set>
+#ifndef hInstance
+    #include "vk.instance.h"
+#endif
 
 namespace vk {
     struct Descriptor {
-        VkDescriptorSetLayout SetLayout;
-        std::vector<VkDescriptorSet> Sets;
-        Descriptor(VkDescriptorType type, VkShaderStageFlags flag, uint32_t bindingCount = 1) {
+        Descriptor(VkDevice device, VkDescriptorType type, VkShaderStageFlags flag, uint32_t bindingCount = 1)
+            : device(device)
+        {
             createDescriptorPool(type, bindingCount);
             createDescriptorSetLayout(type, flag, bindingCount);
             allocateDescriptorSets();
         }
         ~Descriptor() {
             if (Pool != VK_NULL_HANDLE) {
-                vkDestroyDescriptorPool(GPU::device, Pool, nullptr);
+                vkDestroyDescriptorPool(device, Pool, nullptr);
             }
             if (SetLayout != VK_NULL_HANDLE) {
-                vkDestroyDescriptorSetLayout(GPU::device, SetLayout, nullptr);
+                vkDestroyDescriptorSetLayout(device, SetLayout, nullptr);
             }
         }
+    public:
+        VkDescriptorSetLayout SetLayout;
+        std::vector<VkDescriptorSet> Sets;
+
     protected:
+        VkDevice device;
         VkDescriptorPool Pool;
         virtual void writeDescriptorSets(uint32_t bindingCount) {}
+
     private:
-        void createDescriptorPool(VkDescriptorType& type, uint32_t bindingCount) {
-            VkDescriptorPoolSize poolSizes
-            { type , static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * bindingCount };
 
-            VkDescriptorPoolCreateInfo poolInfo
-            { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-            poolInfo.poolSizeCount = 1;
-            poolInfo.pPoolSizes = &poolSizes;
-            poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        void createDescriptorPool(VkDescriptorType& type, uint32_t bindingCount);
 
-            VK_CHECK_RESULT(vkCreateDescriptorPool(GPU::device, &poolInfo, nullptr, &Pool));
-        }
-        void createDescriptorSetLayout(VkDescriptorType& type, VkShaderStageFlags& flag, uint32_t bindingCount) {
-            std::vector<VkDescriptorSetLayoutBinding> layoutBindings(bindingCount);
-            for (uint32_t i = 0; i < bindingCount; i++) {
-                layoutBindings[i].binding = i;
-                layoutBindings[i].descriptorCount = 1;
-                layoutBindings[i].descriptorType = type;
-                layoutBindings[i].pImmutableSamplers = nullptr;
-                layoutBindings[i].stageFlags = flag;
-            }
+        void createDescriptorSetLayout(VkDescriptorType& type, VkShaderStageFlags& flag, uint32_t bindingCount);
 
-            VkDescriptorSetLayoutCreateInfo layoutInfo
-            { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-            layoutInfo.bindingCount = bindingCount;
-            layoutInfo.pBindings = layoutBindings.data();
-
-            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(GPU::device, &layoutInfo, nullptr, &SetLayout));
-        }
-        void allocateDescriptorSets() {
-            std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, SetLayout);
-
-            VkDescriptorSetAllocateInfo allocInfo
-            { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-            allocInfo.descriptorPool = Pool;
-            allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-            allocInfo.pSetLayouts = layouts.data();
-
-            Sets.resize(MAX_FRAMES_IN_FLIGHT);
-
-            VK_CHECK_RESULT(vkAllocateDescriptorSets(GPU::device, &allocInfo, Sets.data()));
-        }
+        void allocateDescriptorSets();
     };
-
+    /**/
     struct Descriptor_ {
         VkDescriptorType type;
         VkShaderStageFlags stageFlags;
@@ -82,6 +55,7 @@ namespace vk {
         
     };
 
+    /*
     struct DescriptorSet {
         template<uint32_t descriptorCount>
         DescriptorSet(Descriptor_(&descriptors)[descriptorCount]) {
@@ -180,4 +154,7 @@ namespace vk {
             }
         }
     };
+    */
 }
+
+#endif

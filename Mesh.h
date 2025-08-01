@@ -26,8 +26,7 @@ namespace vk {
             stageVBO.update(vertices, VBO.buffer);
             stageEBO.update(indices, EBO.buffer);
         }
-        virtual void draw(uint32_t instanceCount = 1) {
-            VkCommandBuffer& commandBuffer = EngineCPU::renderCommands[SwapChain::currentFrame];
+        virtual void draw(VkCommandBuffer& commandBuffer, uint32_t instanceCount = 1) {
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, &VBO.buffer, offsets);
             vkCmdBindIndexBuffer(commandBuffer, EBO.buffer, 0, VK_INDEX_TYPE_UINT16);
@@ -64,13 +63,13 @@ namespace vk {
     struct test_Mesh {
         alignas (16) glm::mat4 matrix = glm::mat4(1.f);
         template <typename T, typename U>
-        inline test_Mesh(std::vector<T> vertices, std::vector<U> indices)
+        inline test_Mesh(GPU* const pHost, std::vector<T> vertices, std::vector<U> indices)
             : indexCount(setIndexCount(indices))
         {
-            VBO = new Buffer(vertices.size() * sizeof(T), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-            EBO = new Buffer(indices.size() * sizeof(U), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-            stageVBO = new StageBuffer(vertices.data(), VBO->size);
-            stageEBO = new StageBuffer(indices.data(), EBO->size);
+            VBO = new Buffer(pHost, vertices.size() * sizeof(T), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            EBO = new Buffer(pHost, indices.size() * sizeof(U), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            stageVBO = new StageBuffer(pHost, vertices.data(), VBO->size);
+            stageEBO = new StageBuffer(pHost, indices.data(), EBO->size);
             stageVBO->transferData(VBO->buffer);
             stageEBO->transferData(EBO->buffer);
         }
@@ -88,8 +87,7 @@ namespace vk {
             stageVBO->update(vertices.data(), VBO->buffer);
             stageEBO->update(indices.data(), EBO->buffer);
         }
-        virtual void draw(uint32_t instanceCount = 1) {
-            VkCommandBuffer& commandBuffer = EngineCPU::renderCommands[SwapChain::currentFrame];
+        virtual void draw(VkCommandBuffer& commandBuffer, uint32_t instanceCount = 1) {
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, &(*VBO).buffer, offsets);
             vkCmdBindIndexBuffer(commandBuffer, EBO->buffer, 0, VK_INDEX_TYPE_UINT16);

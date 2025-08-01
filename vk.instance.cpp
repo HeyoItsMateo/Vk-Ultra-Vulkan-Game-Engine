@@ -84,10 +84,10 @@ namespace vk {
         VkApplicationInfo appInfo
         { VK_STRUCTURE_TYPE_APPLICATION_INFO };
         appInfo.pApplicationName = "Hello Triangle";
-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 3, 261);
+        appInfo.applicationVersion = VK_MAKE_VERSION(1, 4, 313);
         appInfo.pEngineName = "No Engine";
-        appInfo.engineVersion = VK_MAKE_VERSION(1, 3, 261);
-        appInfo.apiVersion = VK_API_VERSION_1_3;
+        appInfo.engineVersion = VK_MAKE_VERSION(1, 4, 313);
+        appInfo.apiVersion = VK_API_VERSION_1_4;
 
         auto extensions = getRequiredExtensions();
 

@@ -14,14 +14,57 @@
 
 #include <chrono>
 
+struct RenderPass {
+    RenderPass(VkRenderPass renderPass, VkExtent2D extent) {
+        _clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+        _clearValues[1].depthStencil = { 1.0f, 0 };
+
+        info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        info.pNext = nullptr;
+        info.renderPass = renderPass;
+        info.renderArea.offset = { 0, 0 };
+        info.renderArea.extent = extent;
+
+        setClearValues(_clearValues);
+    }
+public:
+    VkRenderPassBeginInfo info;
+
+    void setFramebuffer(VkFramebuffer framebuffer) {
+        info.framebuffer = framebuffer;
+    }
+    void setExtent(VkExtent2D extent) {
+        info.renderArea.extent = extent;
+    }
+    void setClearValues(std::array<VkClearValue, 2>& clearValues) {
+        info.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        info.pClearValues = clearValues.data();
+    }
+    void setRenderPass(VkRenderPass renderPass) {
+        info.renderPass = renderPass;
+    }
+private:
+    std::array<VkClearValue, 2> _clearValues{};
+};
+
 namespace vk {   
     struct Engine : SwapChain, EngineCPU {
+        Engine() {
+            pRenderPass = new RenderPass(renderPass, Extent);
+        }
+        ~Engine() {
+            delete pRenderPass;
+        }
+    public:
         uint32_t imageIndex = 0;
+        RenderPass* pRenderPass;
+
         template <int sceneCount, int computeCount>
         void run(Scene(&scene)[sceneCount], ComputePPL(&compute)[computeCount], Pipeline& particlePPL, SSBO& ssbo) {
             std::jthread t1(&Engine::deltaTime, this);
 
             vkAquireImage(imageAvailable[currentFrame], imageIndex);
+
             // Compute Queue
             vkComputeSync();
             runCompute(compute);
@@ -77,11 +120,15 @@ namespace vk {
             }
         }
     private:
-        void vkAquireImage(VkSemaphore& waitSemaphore, uint32_t& imageIndex) {
+
+        void vkAquireImage(VkSemaphore& waitSemaphore, uint32_t imageIndex) {
             VkResult result = vkAcquireNextImageKHR(device, swapChainKHR, UINT64_MAX, waitSemaphore, VK_NULL_HANDLE, &imageIndex);
 
             if (result == VK_ERROR_OUT_OF_DATE_KHR) {
                 recreateSwapChain();
+
+                pRenderPass->setExtent(Extent);
+
                 return;
             }
             else if (result != VK_SUBOPTIMAL_KHR && result != VK_SUCCESS) {
@@ -89,6 +136,7 @@ namespace vk {
             }
             
         }
+        
         template <int size>
         void runCompute(ComputePPL(&compute)[size]) {
             VkCommandBufferBeginInfo beginInfo
@@ -102,18 +150,8 @@ namespace vk {
         }
 
         void beginRenderPass(uint32_t& imageIndex) {
-            std::array<VkClearValue, 2> clearValues{};
-            clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-            clearValues[1].depthStencil = { 1.0f, 0 };
-
-            VkRenderPassBeginInfo renderPassInfo
-            { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
-            renderPassInfo.renderPass = renderPass;
-            renderPassInfo.framebuffer = framebuffers[imageIndex];
-            renderPassInfo.renderArea.offset = { 0, 0 };
-            renderPassInfo.renderArea.extent = Extent;
-            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-            renderPassInfo.pClearValues = clearValues.data();
+            // Update Render pass's framebuffer
+            pRenderPass->setFramebuffer(framebuffers[imageIndex]);
 
             VkViewport viewport = createViewPort();
             VkRect2D scissor = createScissor({ 0, 0 });
@@ -123,7 +161,7 @@ namespace vk {
 
             VK_CHECK_RESULT(vkBeginCommandBuffer(renderCommands[currentFrame], &beginInfo));
 
-            vkCmdBeginRenderPass(renderCommands[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBeginRenderPass(renderCommands[currentFrame], &pRenderPass->info, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdSetViewport(renderCommands[currentFrame], 0, 1, &viewport);
             vkCmdSetScissor(renderCommands[currentFrame], 0, 1, &scissor);
         }
@@ -164,6 +202,9 @@ namespace vk {
             if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || Window::framebufferResized) {
                 Window::framebufferResized = false;
                 recreateSwapChain();
+
+                pRenderPass->setExtent(Extent);
+
                 return;
             }
             else {
@@ -171,6 +212,7 @@ namespace vk {
             }
         }
 
+        //TODO: remake into objects to reduce constant operations
         VkViewport createViewPort(VkExtent2D& extent = Extent) {
             VkViewport viewport{};
             viewport.x = 0.0f;

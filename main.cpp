@@ -1,3 +1,5 @@
+#define GLM_ENABLE_EXPERIMENTAL
+
 #include "vk.engine.h"
 #include "vk.textures.h"
 

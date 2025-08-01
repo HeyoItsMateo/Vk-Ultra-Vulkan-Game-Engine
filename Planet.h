@@ -4,6 +4,10 @@
 
 #include "Geometry.h"
 
+#ifndef GLM_ENABLE_EXPERIMENTAL
+#define GLM_ENABLE_EXPERIMENTAL
+#endif
+
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/vector_angle.hpp>
@@ -130,7 +134,7 @@ namespace pgl {
             for (auto& plate : plates) {//TODO: dispatch to GPU with compute shader
                 
                 for (uint16_t& i : plate.vtx_ids) {
-                    //vertices[i].position = plate.shiftVertex(vertices[i].position);
+                    vertices[i].position = plate.shiftVertex(vertices[i].position);
                 }
             }
             stageVBO->update(vertices.data(), VBO->buffer);
